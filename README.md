@@ -2,7 +2,7 @@
 
 The watchdog of your internet connection. *(Looking for "doberman"? This is it, with two n's.)*
 
-🇮🇹 **Italiano**: la guida completa è in [`docs/GUIDA.md`](docs/GUIDA.md).
+📖 **Guide**: [`docs/GUIDE.md`](docs/GUIDE.md) · 🇮🇹 **Italiano**: [`docs/GUIDA.md`](docs/GUIDA.md)
 
 dobermann watches the path between your home network and the internet: the router, the modem if
 there is one, the operator. When the connection breaks it does not just say "it's down": it mails you
@@ -44,14 +44,14 @@ wizard ends with the address to open.
 | the mail queue (optional) | `nullmailer` | `nullmailer` | `nullmailer` | `nullmailer` |
 | the name `dobermann.local` (optional) | `avahi-daemon` `avahi-utils` | `avahi` `avahi-tools` | `avahi` | `avahi` `avahi-utils` |
 
-Tested on Debian and Ubuntu, including Debian containers on Proxmox. The other families use the same
+Tested on Debian 12, in Proxmox containers. Ubuntu and the other families use the same
 programs and the wizard knows their package names, but they have not been tried yet. Systems without
 systemd are not supported.
 
 ## Documentation
 
-- [`docs/GUIDA.md`](docs/GUIDA.md): installation and use, step by step (Italian; the English version
-  is on its way). It includes setting up Gmail.
+- [`docs/GUIDE.md`](docs/GUIDE.md): installation and use, step by step, including setting up Gmail
+  ([Italiano](docs/GUIDA.md)).
 - [`docs/ADAPTERS.md`](docs/ADAPTERS.md): teaching dobermann to read a new device.
 
 ## Tests

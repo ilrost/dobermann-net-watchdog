@@ -5,7 +5,7 @@ Misura di continuo, e quando la connessione si guasta ti scrive **dove** si è r
 quali **prove**, **quanto** è durata e **cosa fare**. Ogni settimana (o ogni giorno) ti manda un
 riepilogo.
 
-Questa guida è per chi lo installa e lo usa. Per insegnargli a leggere un nuovo apparato c'è [`ADAPTERS.md`](ADAPTERS.md).
+Questa guida è per chi lo installa e lo usa. Per insegnargli a leggere un nuovo apparato c'è [`ADAPTERS.md`](ADAPTERS.md). 🇬🇧 La versione inglese di questa guida è [`GUIDE.md`](GUIDE.md).
 
 - [1. Cosa serve](#1-cosa-serve)
 - [2. Installazione con il wizard](#2-installazione-con-il-wizard)
@@ -51,8 +51,8 @@ programmi di sistema; il wizard controlla quali mancano e, dopo la tua conferma,
 | la coda delle mail durante i guasti (facoltativo) | `nullmailer` | `nullmailer` | `nullmailer` | `nullmailer` |
 | il nome `dobermann.local` (facoltativo) | `avahi-daemon` `avahi-utils` | `avahi` `avahi-tools` | `avahi` | `avahi` `avahi-utils` |
 
-**Sistemi supportati**: Debian e Ubuntu (e i container Debian su Proxmox) sono quelli provati. Le
-altre famiglie della tabella usano gli stessi programmi con i nomi indicati e il wizard li riconosce,
+**Sistemi supportati**: quello provato è Debian 12 (nei container Proxmox). Ubuntu e le altre
+famiglie della tabella usano gli stessi programmi con i nomi indicati e il wizard li riconosce,
 ma non sono ancora state provate. Dove `nullmailer` non c'è, le mail partono via SMTP diretto, senza
 coda. Un sistema **senza systemd** (per esempio Alpine) non è supportato.
 
