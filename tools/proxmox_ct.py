@@ -188,6 +188,12 @@ def install_code(ctid, out, install_args=(), password=None):
     return result
 
 
+def ct_bridge(ctid):
+    """The bridge of the CT's first network interface, from its Proxmox configuration."""
+    m = re.search(r"^net0:.*\bbridge=([^,\s]+)", _out(["pct", "config", str(ctid)]), re.M)
+    return m.group(1) if m else None
+
+
 def ct_address(ctid):
     try:
         for iface in json.loads(_out(["pct", "exec", str(ctid), "--", "ip", "-j", "-4", "addr", "show", "eth0"])):
@@ -223,7 +229,10 @@ def run(args, out=print, password=None):
             out("\n" + _("PROVA A VUOTO: nulla è stato cambiato. Rilancia con --apply."))
             return {}
         install_packages(args.update, out)
-        result = install_code(args.update, out, install_args=["--language", args.language] if args.language else [])
+        extra = ["--platform-ct", str(args.update), "--platform-bridge", ct_bridge(args.update) or "vmbr0"]
+        if args.language:
+            extra += ["--language", args.language]
+        result = install_code(args.update, out, install_args=extra)
         return dict(result, ctid=args.update, address=ct_address(args.update))
 
     if not args.ip:
