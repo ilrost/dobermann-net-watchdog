@@ -11,6 +11,7 @@ particular network: a fresh install knows only public anchors and its own system
 import copy
 import json
 import os
+import tempfile
 
 DEFAULTS = {
     "language": "en",              # the panel and the mails; see i18n.LANGUAGES
@@ -74,6 +75,8 @@ def db_file():
 def _merge(base, override):
     out = copy.deepcopy(base)
     for k, v in (override or {}).items():
+        if v is None and isinstance(out.get(k), dict):
+            continue      # a section written as null keeps its defaults
         if isinstance(v, dict) and isinstance(out.get(k), dict):
             out[k] = _merge(out[k], v)
         else:
@@ -105,13 +108,19 @@ def load_secrets():
 
 def _atomic_write(path, data, mode=0o644):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = f"{path}.tmp"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
-    with os.fdopen(fd, "w") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-        f.write("\n")
-    os.chmod(tmp, mode)
-    os.replace(tmp, path)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix="." + os.path.basename(path) + ".")   # 0600, own
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def save(cfg):

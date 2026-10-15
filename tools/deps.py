@@ -103,7 +103,7 @@ def install(deps, mgr, run=subprocess.run):
     failed = []
     must = [d for d in deps if not optional(d)]
     if must and run(install_command(must, mgr), env=env, check=False).returncode != 0:
-        failed += must
+        failed += [d for d in must if not present(d)]     # only what is really still missing
     for d in deps:
         if optional(d) and run(install_command([d], mgr), env=env, check=False).returncode != 0:
             failed.append(d)

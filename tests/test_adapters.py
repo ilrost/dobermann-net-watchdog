@@ -250,3 +250,12 @@ class TestReviewHardening(unittest.TestCase):
         from dobermann import alerts
         r = alerts.rules({"rules": {"outage": "immediate"}})
         self.assertEqual(r["outage"]["mode"], "after")
+
+
+class TestFactsHardening(unittest.TestCase):
+    def test_non_finite_numbers_and_control_characters_never_pass(self):
+        clean, dropped = factlib.validate({"wan.uptime_s": "inf", "cell.lte_rsrp_dbm": "NaN",
+                                         "device.model": "AC1200\r\nX: y\x1b[2J"})
+        self.assertNotIn("wan.uptime_s", clean)
+        self.assertNotIn("cell.lte_rsrp_dbm", clean)
+        self.assertEqual(clean.get("device.model"), "AC1200X: y[2J")

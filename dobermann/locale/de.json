@@ -743,6 +743,7 @@
  "{v} è passato al 3G, più lento, per mancanza di copertura migliore.": "{v} ist auf das langsamere 3G gewechselt, weil keine bessere Abdeckung da war.",
  "{v} è una copia git: aggiorna con `git pull`, poi `sudo python3 tools/install.py --apply`": "{v} ist eine git-Kopie: aktualisiere mit `git pull`, dann `sudo python3 tools/install.py --apply`",
  "{v}: dev'essere fra {lo} e {hi}": "{v}: muss zwischen {lo} und {hi} liegen",
+ "{v}: il pannello ascolta solo su indirizzi IPv4": "{v}: die Oberfläche lauscht nur auf IPv4-Adressen",
  "{v}: nessun adattatore lo riconosce; resta nella catena senza dati propri.": "{v}: kein Adapter erkennt es; es bleibt ohne eigene Daten in der Kette.",
  "{v}: non può contenere spazi (per le password per app di Gmail: scrivila senza spazi)": "{v}: darf keine Leerzeichen enthalten (App-Passwörter von Gmail: ohne Leerzeichen schreiben)",
  "{v}: serve un numero": "{v}: eine Zahl wird gebraucht",

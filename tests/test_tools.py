@@ -56,6 +56,11 @@ class TestInstall(unittest.TestCase):
             with self.assertRaises(install.InstallError):
                 install.update_config(tmp, language="it")
 
+    def test_a_null_section_keeps_its_defaults(self):
+        from dobermann import config
+        self.assertEqual(config._merge({"dns": {"local": None, "external": "1.1.1.1"}}, {"dns": None})["dns"]["external"],
+                         "1.1.1.1")
+
     def test_only_local_names(self):
         self.assertTrue(install.valid_name("dobermann.local"))
         self.assertFalse(install.valid_name("dobermann.lan"))

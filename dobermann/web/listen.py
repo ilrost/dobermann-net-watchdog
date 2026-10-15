@@ -43,7 +43,8 @@ def resolve(cert_path, key_path, env=os.environ, exists=os.path.exists):
     """dict(bind, http_port, tls, tls_port, cert, key). Raises ListenError on anything ambiguous."""
     bind = (env.get("DOBERMANN_BIND") or "").strip() or DEFAULT_BIND
     try:
-        ipaddress.ip_address(bind)
+        if ipaddress.ip_address(bind).version != 4:
+            raise ListenError(_("{v}: il pannello ascolta solo su indirizzi IPv4", v=f"DOBERMANN_BIND={bind}"))
     except ValueError:
         raise ListenError(_("{v} non è un indirizzo IP", v=f"DOBERMANN_BIND={bind!r}")) from None
     http_port = _port(env, "DOBERMANN_PORT", DEFAULT_HTTP_PORT)

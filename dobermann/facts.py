@@ -12,6 +12,8 @@ Names are per device. When the core stores them it prefixes the node id from cha
 (`modem.cell.rat`), so two devices of the same kind never collide.
 """
 import ipaddress
+import math
+import re
 from dataclasses import dataclass
 
 
@@ -69,6 +71,9 @@ def is_blank(value):
     return value is None or (isinstance(value, str) and value.strip() in BLANK)
 
 
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
 def _coerce(fact, value):
     """The value as the fact's type, or None if it cannot be one."""
     if isinstance(value, str):
@@ -88,18 +93,21 @@ def _coerce(fact, value):
         if fact.kind == "int":
             if isinstance(value, bool):
                 return None
-            return int(float(value))
+            f = float(value)
+            return int(f) if math.isfinite(f) else None
         if fact.kind == "float":
             if isinstance(value, bool):
                 return None
-            return float(value)
+            f = float(value)
+            return f if math.isfinite(f) else None      # NaN/inf would make every comparison lie
         if fact.kind == "ip":
             # shown in the panel and compared across samples: only a real address, never free text
             return str(ipaddress.ip_address(str(value)))
         if fact.kind == "enum":
             return value if value in fact.values else None
-        return str(value)
-    except (TypeError, ValueError):
+        # device text goes into the panel and the mails: no control characters from the device
+        return _CONTROL.sub("", str(value)) or None
+    except (TypeError, ValueError, OverflowError):
         return None
 
 

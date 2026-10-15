@@ -208,7 +208,7 @@ def main(argv=None):
     pr.add_argument("--adapter", help=_("usa questo adattatore invece del più probabile"))
     pr.add_argument("--password-file")
     pr.add_argument("--ask-password", action="store_true")
-    pr.add_argument("--samples", type=int, default=1)
+    pr.add_argument("--samples", type=lambda v: max(1, int(v)), default=1)
     pr.add_argument("--interval", type=float, default=5.0)
     pr.add_argument("--timeout", type=float, default=3.0)
     pr.set_defaults(func=cmd_probe)
