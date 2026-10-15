@@ -506,7 +506,7 @@ _login_throttle = LoginThrottle()
 
 # where /language may send the browser back to: a path of this panel, nothing that a browser could read
 # as another host ("//", "/\\") and nothing that could end the Location header (CR, LF)
-_SAFE_NEXT = re.compile(r"^/(?![/\\])[A-Za-z0-9_\-./?=&%]*$")
+_SAFE_NEXT = re.compile(r"^/(?![/\\])[A-Za-z0-9_\-./?=&%]*\Z")
 
 
 class Handler(BaseHTTPRequestHandler):

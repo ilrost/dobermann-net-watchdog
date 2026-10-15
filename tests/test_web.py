@@ -337,6 +337,9 @@ class TestToolbarAndAddress(WebCase):
         self.assertEqual(config.load()["language"], "it")
         _, url, _ = self.post("/language", lang="xx", next="//evil.example")
         self.assertTrue(url.endswith("/watchdash"))
+        for bad in ("/report\n", "/\\evil.example", "/x\r\nSet-Cookie: a=b"):
+            _, url, _ = self.post("/language", lang="it", next=bad)
+            self.assertTrue(url.endswith("/watchdash"), bad)
         self.assertEqual(config.load()["language"], "it")
 
     def test_log_out_everywhere(self):
