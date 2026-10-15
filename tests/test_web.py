@@ -414,6 +414,10 @@ class TestRequestHardening(WebCase):
         reply = self.raw(b"POST /login HTTP/1.1\r\nHost: x\r\nContent-Length: -1\r\n\r\npassword=aaaaaaaa")
         self.assertTrue(reply.startswith("HTTP/1."), reply[:80])
 
+    def test_an_absurdly_long_content_length_is_refused_cleanly(self):
+        reply = self.raw(b"POST /login HTTP/1.1\r\nHost: x\r\nContent-Length: " + b"9" * 4400 + b"\r\n\r\n")
+        self.assertTrue(reply.startswith("HTTP/1."), reply[:80])
+
     def test_logout_is_a_post_and_a_link_cannot_log_out(self):
         self.login()
         _, url, _ = self.get("/logout")

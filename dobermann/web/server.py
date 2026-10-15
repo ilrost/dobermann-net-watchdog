@@ -570,7 +570,8 @@ class Handler(BaseHTTPRequestHandler):
         """The request body, or None when Content-Length is missing, malformed, negative or over `limit`
         (a negative length would otherwise mean "read until the client hangs up")."""
         raw = (self.headers.get("Content-Length") or "0").strip()
-        if not raw.isdigit() or int(raw) > limit:
+        # ASCII digits only and few of them: int() refuses strings over 4300 digits with an exception
+        if not re.fullmatch(r"[0-9]{1,9}", raw) or int(raw) > limit:
             return None
         return self.rfile.read(int(raw))
 
