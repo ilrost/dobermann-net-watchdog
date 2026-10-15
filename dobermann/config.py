@@ -40,6 +40,7 @@ DEFAULTS = {
         "cooldown_s": 300,
     },
     "dashboard_url": "",
+    "updates": {"check": True},    # once a day, ask GitHub whether a newer version exists
 }
 
 # A chain with nothing but the gateway: what an install knows before the configurator ran.

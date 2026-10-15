@@ -4,4 +4,5 @@ checks the other languages."""
 from dobermann import config, i18n
 
 config.DEFAULTS["language"] = "it"
+config.DEFAULTS["updates"] = {"check": False}      # no test asks GitHub; tests/test_updates.py fakes it
 i18n.set_language("it")

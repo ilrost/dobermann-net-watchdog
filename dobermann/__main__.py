@@ -10,6 +10,8 @@
     python3 -m dobermann mdns dobermann.local              # announce a name on the LAN (the mdns service)
     python3 -m dobermann reset-password                    # choose a new panel password here
     python3 -m dobermann reset-password --code             # or clear it and get a code for the browser
+    python3 -m dobermann update                            # install the newest version from GitHub (root)
+    python3 -m dobermann update --check                    # only say whether there is one
 
 A password is only ever read from a file (or typed at a hidden prompt with --ask-password), never
 from the command line, where it would end up in the shell history and the process list.
@@ -159,6 +161,39 @@ def cmd_reset_password(args):
     return 0
 
 
+def cmd_update(args):
+    from dobermann import updates
+    try:
+        st = updates.check()
+    except updates.UpdateError as e:
+        print(_("ERRORE: {v}", v=e))
+        return 1
+    try:
+        updates.save_status(dict(st, ts=time.time(), error=None))
+    except OSError:
+        pass
+    if not st["newer"]:
+        print(_("dobermann {v} è già l'ultima versione.", v=st["current"]))
+        return 0
+    print(_("Versione installata: {a}. Disponibile: {b}.", a=st["current"], b=st["latest"]))
+    print(_("Cosa cambia: {v}", v=st["compare_url"]))
+    if args.check:
+        return 0
+    try:
+        answer = "y" if args.yes else input(_("Aggiorno adesso? [s/N] ")).strip().lower()
+    except EOFError:      # no terminal to ask on (pct exec): --yes is how to say yes there
+        answer = ""
+    if answer not in ("s", "si", "sì", "y", "yes", "j", "ja", "o", "oui"):
+        print(_("Nulla è stato cambiato."))
+        return 0
+    try:
+        ok = updates.apply(st["latest"])
+    except updates.UpdateError as e:
+        print(_("ERRORE: {v}", v=e))
+        return 1
+    return 0 if ok else 1
+
+
 def main(argv=None):
     # the language of the install, as for the panel and the mails
     try:
@@ -187,6 +222,10 @@ def main(argv=None):
     rp = sub.add_parser("reset-password", help=_("nuova password del pannello"))
     rp.add_argument("--code", action="store_true", help=_("toglie la password e stampa un codice per sceglierla dal browser"))
     rp.set_defaults(func=cmd_reset_password)
+    up = sub.add_parser("update", help=_("installa l'ultima versione da GitHub (da root)"))
+    up.add_argument("--check", action="store_true", help=_("dice solo se c'è una versione nuova"))
+    up.add_argument("--yes", action="store_true", help=_("non chiede conferma"))
+    up.set_defaults(func=cmd_update)
     args = p.parse_args(argv)
     return args.func(args)
 

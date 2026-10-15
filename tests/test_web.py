@@ -6,6 +6,7 @@ import re
 import tempfile
 import threading
 import unittest
+from unittest import mock
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -362,3 +363,23 @@ class TestToolbarAndAddress(WebCase):
         self.assertEqual(config.load()["dashboard_url"], "https://192.0.2.9/watchdash")
         status, _, _ = self.post("/setup", action="save_link", dashboard_url="javascript:alert(1)")
         self.assertEqual(status, 400)
+
+
+class TestUpdatesSection(WebCase):
+    def test_check_now_shows_a_failure_as_a_failure(self):
+        from dobermann import updates
+        self.login()
+        with mock.patch.object(updates, "check", side_effect=updates.UpdateError("GitHub giù")):
+            status, _, body = self.post("/setup", action="check_updates")
+        self.assertEqual(status, 200)
+        self.assertIn("banner error", body)
+        self.assertIn("Ultimo controllo non riuscito: GitHub giù", body)
+
+    def test_a_newer_version_shows_in_the_toolbar_and_the_daily_check_can_be_turned_off(self):
+        from dobermann import updates
+        self.login()
+        updates.save_status({"latest": "v99.0.0", "newer": True, "compare_url": "https://example.org/c", "ts": 1})
+        _, _, body = self.get("/watchdash")
+        self.assertIn('class="upd"', body)
+        self.post("/setup", action="save_updates")
+        self.assertFalse(config.load()["updates"]["check"])

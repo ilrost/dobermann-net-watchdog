@@ -29,7 +29,7 @@ import urllib.parse
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from dobermann import adapters, alerts, config, discover, i18n, notify, relay
+from dobermann import __version__, adapters, alerts, config, discover, i18n, notify, relay, updates
 from dobermann.chain import Chain
 from dobermann.i18n import _
 from dobermann.web import address, auth, listen, report
@@ -68,9 +68,14 @@ def toolbar(token=None, here="/watchdash"):
         items.append(f'<form method="post" action="/language"><input type="hidden" name="lang" value="{code}">'
                      f'<input type="hidden" name="next" value="{esc(here)}"><button type="submit"{cls} lang="{code}">'
                      f'{esc(name)}</button></form>')
+    st = updates.load_status() or {}
+    upd = ""
+    if st.get("newer"):
+        upd = (f'<a href="/setup#updates" class="upd" title="{esc(_("Nuova versione disponibile: {v}", v=st["latest"]))}">'
+               f'{esc(st["latest"])}</a>')
     started = auth.session_started(token)
     since = _("collegato dal {v}", v=datetime.fromtimestamp(started).strftime("%d/%m/%Y %H:%M")) if started else ""
-    return _fill(_tpl("toolbar.html"), {"__LANG_ITEMS__": "".join(items), "__SINCE__": esc(since)})
+    return _fill(_tpl("toolbar.html"), {"__LANG_ITEMS__": "".join(items), "__SINCE__": esc(since), "__UPDATE__": upd})
 
 
 def render_data_page(name, data, token=None, here="/watchdash"):
@@ -354,6 +359,37 @@ def _address_section(cfg, commands=None):
 </section>"""
 
 
+def _updates_section(cfg):
+    st = updates.load_status() or {}
+    on = (cfg.get("updates") or {}).get("check", True)
+    if st.get("newer"):
+        plat = cfg.get("platform") or {}
+        if plat.get("kind") == "proxmox-lxc":
+            where, cmd = _("Per aggiornare, dall'host Proxmox, come root:"), f"pct exec {plat['ctid']} -- /usr/local/bin/dobermann update --yes"
+        else:
+            where, cmd = _("Per aggiornare, su questa macchina:"), "sudo dobermann update"
+        state = (f'<div class="banner">{esc(_("È disponibile la versione {v}.", v=st["latest"]))} '
+                 f'<a href="{esc(st["compare_url"])}" target="_blank" rel="noopener">{esc(_("Cosa cambia"))}</a><br>'
+                 f'{esc(where)}<pre class="cmds">{esc(cmd)}</pre></div>')
+    elif st.get("error"):
+        state = f'<p class="note">{esc(_("Ultimo controllo non riuscito: {v}", v=st["error"]))}</p>'
+    elif st.get("ts"):
+        state = f'<p class="note">{esc(_("Nessuna versione nuova (controllato il {v}).", v=datetime.fromtimestamp(st["ts"]).strftime("%d/%m/%Y %H:%M")))}</p>'
+    else:
+        state = f'<p class="note">{esc(_("Non ancora controllato."))}</p>'
+    return f"""
+<section id="updates">
+  <h2>{esc(_("Aggiornamenti"))}</h2>
+  <p class="hint">{esc(_("Versione installata: {v}. Una volta al giorno dobermann chiede a GitHub se c'è una versione nuova (manda solo la propria versione) e te lo dice qui e in alto. Non aggiorna da solo: l'aggiornamento lo lanci tu.", v=__version__))}</p>
+  {state}
+  <form method="post" action="/setup">
+    <label class="check"><input type="checkbox" name="updates_check" value="1" {"checked" if on else ""}> {esc(_("Controlla ogni giorno se c'è una versione nuova"))}</label>
+    <button type="submit" name="action" value="save_updates">{esc(_("Salva"))}</button>
+    <button type="submit" name="action" value="check_updates" class="secondary">{esc(_("Controlla ora"))}</button>
+  </form>
+</section>"""
+
+
 def _password_section():
     return f"""
 <section id="password">
@@ -385,6 +421,7 @@ def render_setup(banner=None, error=False, notes=(), token=None, commands=None):
 {_alerts_section(cfg, Chain(chain_spec, secrets).radio_uplink() is not None)}
 {_measure_section(cfg)}
 {_address_section(cfg, commands)}
+{_updates_section(cfg)}
 {_password_section()}"""
     return _fill(_tpl("setup.html"), {"__BODY__": body})
 
@@ -706,8 +743,9 @@ class Handler(BaseHTTPRequestHandler):
         except FormError as e:
             self._send(render_setup(token=self._token(), banner=_("Non salvato: {v}", v=e), error=True), status=400)
             return
-        if action == "test_mail":
-            self._send(render_setup(token=self._token(), banner=msg, error=msg.startswith(_("Invio fallito:"))))
+        if action in ("test_mail", "check_updates"):
+            failed = msg.startswith(_("Invio fallito:")) or msg.startswith(_("Ultimo controllo non riuscito: {v}", v=""))
+            self._send(render_setup(token=self._token(), banner=msg, error=failed))
             return
         if notes:
             self._send(render_setup(token=self._token(), banner=msg, notes=notes))
@@ -861,6 +899,16 @@ class Handler(BaseHTTPRequestHandler):
             return _("Indirizzo del pannello salvato."), (), None
         if action == "change_ip":
             return _change_ip(form, cfg, raw)
+        if action == "save_updates":
+            raw["updates"] = dict(cfg.get("updates") or {}, check=form.get("updates_check", [""])[0] == "1")
+            config.save(raw)
+            return _("Impostazione salvata."), (), None
+        if action == "check_updates":
+            st = updates.check_and_save()
+            if st.get("error"):
+                return _("Ultimo controllo non riuscito: {v}", v=st["error"]), (), None
+            return (_("È disponibile la versione {v}.", v=st["latest"]) if st["newer"]
+                    else _("dobermann {v} è già l'ultima versione.", v=__version__)), (), None
         if action == "password":
             p1, p2 = form.get("new_password", [""])[0], form.get("new_password2", [""])[0]
             if len(p1) < 8:

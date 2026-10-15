@@ -327,7 +327,7 @@ The pages:
 - **Export**: the samples or the hourly summaries as CSV.
 - **Settings**: chain, notifications, when to be told, measurements (reference servers, DNS,
   thresholds, days the samples are kept: incidents and hourly summaries are kept for good),
-  dobermann's address, panel password.
+  dobermann's address, updates, panel password.
 
 Changes apply from the next sample, without restarting anything.
 
@@ -356,16 +356,34 @@ After the change, open the panel at the new address. The name `dobermann.local` 
 
 ## 12. Maintenance
 
-**Updating dobermann** (on the Proxmox host, in the updated copy of the repository):
+**New versions.** Once a day dobermann asks GitHub whether a new version exists. It sends only its
+own version number. When there is one, a green button with the number appears at the top right, and
+**Settings → Updates** shows a link to what changes and the command to run. dobermann **does not update
+by itself**. The check can be turned off in the same section, which also has **Check now**.
+
+**Updating dobermann**, the simple way: on the machine it runs on, as root,
+
+```bash
+dobermann update            # shows the new version and asks before going on
+dobermann update --check    # only says whether there is one
+```
+
+In a Proxmox container, from the host: `pct exec <CT number> -- /usr/local/bin/dobermann update --yes`.
+It downloads the newest version's archive from GitHub (no git needed), checks it, puts the code in
+place of the old one (which stays in `/opt/dobermann.old`) and restarts the services. **If they do not
+come back, it puts the previous version back by itself.** Configuration, passwords, data and the
+installation's choices (HTTP or HTTPS, local name, language) are not touched.
+
+**From the Proxmox host, with a snapshot first**, from the updated copy of the repository:
 
 ```bash
 cd /opt/dobermann-net-watchdog && git pull
+pct snapshot <CT number> before-update
 python3 tools/proxmox_ct.py --update <CT number> --apply
 ```
 
-It replaces the code (the previous one stays in `/opt/dobermann.old`), installs any new packages and
-restarts the services. Configuration, passwords, data and the installation's choices (HTTP or HTTPS,
-local name) are not touched. On another Linux: `git pull`, then `sudo python3 tools/install.py --apply`.
+If something goes wrong: `pct rollback <CT number> before-update`. On another Linux installed with
+`git clone`: `git pull`, then `sudo python3 tools/install.py --apply`.
 
 **Inside the container** (`pct enter <CT number>`):
 

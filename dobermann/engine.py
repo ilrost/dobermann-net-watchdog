@@ -9,7 +9,7 @@ import os
 import threading
 import time
 
-from dobermann import alerts, config, diagnosis, i18n, narrative, notify, probes, store
+from dobermann import alerts, config, diagnosis, i18n, narrative, notify, probes, store, updates
 from dobermann.i18n import _
 from dobermann.chain import Chain
 from dobermann.incidents import Tracker
@@ -40,7 +40,7 @@ def _rate(prev, cur, dt, max_bps=None):
 
 
 class Engine:
-    def __init__(self, db_path=None, async_mail=True):
+    def __init__(self, db_path=None, async_mail=True, update_fetch=None):
         self.con = store.connect(db_path or config.db_file())
         self.facts_writer = store.FactsWriter()
         self.async_mail = async_mail
@@ -57,6 +57,8 @@ class Engine:
         self.last_maintain_ts = 0.0
         self.db_alert_ts = 0.0
         self.summary_check_ts = 0.0
+        self.update_fetch = update_fetch
+        self.update_check_ts = (updates.load_status() or {}).get("ts", 0.0)   # a restart does not ask again
         self.outbox = []                # (subject, body) sent, for tests and logs
 
     # -- configuration --------------------------------------------------------------------------
@@ -210,6 +212,12 @@ class Engine:
         if ts - self.summary_check_ts >= SUMMARY_CHECK_EVERY_S:
             self.summary_check_ts = ts
             self._maybe_summary(ts)
+        if updates.due(self.cfg, ts, self.update_check_ts):
+            self.update_check_ts = ts
+            # in a thread: GitHub slow or unreachable (the internet may be down) must not delay a sample
+            kw = {"fetch": self.update_fetch} if self.update_fetch else {}
+            threading.Thread(target=updates.check_and_save, kwargs=dict(kw, now=ts), daemon=True,
+                             name="update-check").start()
         return state
 
     def _maybe_summary(self, ts):
