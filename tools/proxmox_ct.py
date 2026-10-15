@@ -31,8 +31,15 @@ import tarfile
 import time
 
 CODE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# nullmailer: the local mail relay
-PACKAGES = ["python3", "iputils-ping", "openssl", "ca-certificates", "nullmailer"]
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, CODE_DIR)
+import deps  # noqa: E402
+from dobermann import i18n  # noqa: E402
+from dobermann.i18n import _  # noqa: E402
+
+# the CT is Debian: everything an install with HTTPS and the local name needs (see tools/deps.py)
+PACKAGES = deps.packages(deps.wanted(https=True, mdns=True), "apt")
+DEFAULT_NAME = "dobermann.local"
 SKIP = {".git", "__pycache__", ".pytest_cache"}
 
 
@@ -40,8 +47,8 @@ class CtError(Exception):
     pass
 
 
-def _out(cmd, check=True):
-    r = subprocess.run(cmd, capture_output=True, text=True)
+def _out(cmd, check=True, input=None):
+    r = subprocess.run(cmd, capture_output=True, text=True, input=input)
     if check and r.returncode != 0:
         raise CtError(f"{' '.join(cmd)}: {(r.stderr or r.stdout).strip()}")
     return r.stdout
@@ -61,6 +68,45 @@ def net0(bridge, ip, gw):
     if ip == "dhcp":
         return f"name=eth0,bridge={bridge},ip=dhcp,firewall=1"
     return f"name=eth0,bridge={bridge},ip={ip},gw={gw},firewall=1"
+
+
+def address_in_use(ip, timeout_s=1):
+    """True if something already answers a ping at `ip` (without the mask)."""
+    r = subprocess.run(["ping", "-c", "2", "-W", str(timeout_s), ip], capture_output=True)
+    return r.returncode == 0
+
+
+def bridges():
+    """The Linux bridges of the host (vmbr0, ...), from `ip -j link`."""
+    try:
+        links = json.loads(_out(["ip", "-j", "link", "show", "type", "bridge"]))
+    except (CtError, ValueError):
+        return []
+    return sorted(link["ifname"] for link in links if link.get("ifname", "").startswith("vmbr"))
+
+
+def bridge_network(bridge):
+    """The host's own address on the bridge, as an interface (192.0.2.2/24), or None."""
+    try:
+        for iface in json.loads(_out(["ip", "-j", "-4", "addr", "show", bridge])):
+            for a in iface.get("addr_info", []):
+                return ipaddress.ip_interface(f"{a['local']}/{a['prefixlen']}")
+    except (CtError, ValueError, KeyError):
+        pass
+    return None
+
+
+def storages():
+    """The storages that can hold a CT's disk ('rootdir' content), from pvesm."""
+    try:
+        text = _out(["pvesm", "status", "--content", "rootdir"])
+    except CtError:
+        return []
+    return [ln.split()[0] for ln in text.splitlines()[1:] if ln.strip() and ln.split()[2:3] == ["active"]]
+
+
+def next_id():
+    return int(_out(["pvesh", "get", "/cluster/nextid"]).strip())
 
 
 def host_gateway(bridge):
@@ -85,7 +131,7 @@ def create_plan(args, template):
          "--cores", str(args.cores), "--memory", str(args.memory), "--swap", str(args.memory),
          "--rootfs", f"{args.storage}:{args.disk}", "--net0", net0(args.bridge, args.ip, args.gw),
          "--ostype", "debian", "--timezone", "host", "--onboot", "1", "--start", "1",
-         "--description", "dobermann-net-watchdog: sorveglianza della connessione a internet"],
+         "--description", "dobermann: internet connection watchdog"],
     ]
 
 
@@ -100,18 +146,20 @@ def wait_for_network(ctid, timeout=120):
         if r.returncode == 0:
             return
         time.sleep(3)
-    raise CtError(f"il CT {ctid} non raggiunge deb.debian.org dopo {timeout}s: controlla indirizzo, gateway e DNS")
+    raise CtError(_("il CT {id} non raggiunge deb.debian.org dopo {t}s: controlla indirizzo, gateway e DNS", id=ctid, t=timeout))
 
 
 def install_packages(ctid, out):
-    out("  ..  installo i pacchetti")
+    out("  ..  " + _("installo i pacchetti"))
     # noninteractive: nullmailer's installer otherwise waits for an answer nobody can give
     pct_exec(ctid, "export DEBIAN_FRONTEND=noninteractive; apt-get update -q >/dev/null && "
                    f"apt-get install -y -q --no-install-recommends {' '.join(PACKAGES)} >/dev/null")
-    out("  ok  pacchetti installati")
+    out("  ok  " + _("pacchetti installati"))
 
 
-def install_code(ctid, out):
+def install_code(ctid, out, install_args=(), password=None):
+    """Copies the code into the CT and runs tools/install.py there. Returns what it reported (its RESULT
+    line). The password goes through standard input, never on a command line."""
     data = code_tarball()
     tmp = f"/tmp/dobermann-{os.getpid()}.tar.gz"
     with open(tmp, "wb") as f:
@@ -120,13 +168,24 @@ def install_code(ctid, out):
         _out(["pct", "push", str(ctid), tmp, "/root/dobermann.tar.gz"])
     finally:
         os.unlink(tmp)
-    out(f"  ok  codice copiato nel CT ({len(data) // 1024} KB)")
+    out("  ok  " + _("codice copiato nel CT ({v} KB)", v=len(data) // 1024))
     pct_exec(ctid, "set -e; rm -rf /opt/dobermann.new; mkdir -p /opt/dobermann.new; "
                    "tar -xzf /root/dobermann.tar.gz -C /opt/dobermann.new --strip-components=1; "
                    "rm /root/dobermann.tar.gz; rm -rf /opt/dobermann.old; "
                    "if [ -d /opt/dobermann ]; then mv /opt/dobermann /opt/dobermann.old; fi; "
                    "mv /opt/dobermann.new /opt/dobermann")
-    out(pct_exec(ctid, "python3 /opt/dobermann/tools/install.py --apply").rstrip())
+    cmd = ["pct", "exec", str(ctid), "--", "python3", "/opt/dobermann/tools/install.py", "--apply", "--no-summary",
+           *install_args]
+    if password is not None:
+        cmd.append("--password-stdin")
+    text = _out(cmd, input=(password + "\n") if password is not None else None)
+    result = {}
+    for line in text.splitlines():
+        if line.startswith("RESULT "):
+            result = json.loads(line[len("RESULT "):])
+        else:
+            out(line)
+    return result
 
 
 def ct_address(ctid):
@@ -139,37 +198,51 @@ def ct_address(ctid):
     return None
 
 
-def run(args, out=print):
+def install_args(args, address):
+    out = ["--platform-ct", str(args.id), "--platform-bridge", args.bridge]
+    if getattr(args, "language", None):
+        out += ["--language", args.language]
+    out.append("--http" if getattr(args, "http", False) else "--https")
+    out += ["--no-name"] if getattr(args, "no_name", False) else ["--name", DEFAULT_NAME]
+    if address:
+        out += ["--address", address]
+    return out
+
+
+def run(args, out=print, password=None):
+    """Returns what the install inside the CT reported ({} for a dry run), plus 'ctid' and 'address'."""
     if not shutil.which("pct"):
-        raise CtError("`pct` non trovato: lo script va lanciato sull'host Proxmox")
+        raise CtError(_("`pct` non trovato: lo script va lanciato sull'host Proxmox"))
     existing = {line.split()[0] for line in _out(["pct", "list"]).splitlines()[1:] if line.strip()}
 
     if args.update:
         if str(args.update) not in existing:
-            raise CtError(f"il CT {args.update} non esiste")
-        out(f"Aggiornamento di dobermann nel CT {args.update} con il codice di {CODE_DIR}")
+            raise CtError(_("il CT {v} non esiste", v=args.update))
+        out(_("Aggiornamento di dobermann nel CT {id} con il codice di {dir}", id=args.update, dir=CODE_DIR))
         if not args.apply:
-            out("\nPROVA A VUOTO: nulla è stato cambiato. Rilancia con --apply.")
-            return 0
+            out("\n" + _("PROVA A VUOTO: nulla è stato cambiato. Rilancia con --apply."))
+            return {}
         install_packages(args.update, out)
-        install_code(args.update, out)
-        return 0
+        result = install_code(args.update, out, install_args=["--language", args.language] if args.language else [])
+        return dict(result, ctid=args.update, address=ct_address(args.update))
 
     if not args.ip:
-        raise CtError("serve --ip: un indirizzo fisso con la maschera (es. 192.168.1.50/24) oppure dhcp")
+        raise CtError(_("serve --ip: un indirizzo fisso con la maschera (es. 192.168.1.50/24) oppure dhcp"))
     if args.ip != "dhcp":
         try:
             ipaddress.ip_interface(args.ip)
         except ValueError:
-            raise CtError(f"--ip {args.ip!r}: serve un indirizzo con la maschera, es. 192.168.1.50/24") from None
+            raise CtError(_("--ip {v}: serve un indirizzo con la maschera, es. 192.168.1.50/24", v=repr(args.ip))) from None
         if "/" not in args.ip:
-            raise CtError(f"--ip {args.ip!r}: manca la maschera, es. {args.ip}/24")
+            raise CtError(_("--ip {v}: manca la maschera, es. {ip}/24", v=repr(args.ip), ip=args.ip))
         args.gw = args.gw or host_gateway(args.bridge)
         if not args.gw:
-            raise CtError(f"nessun gateway predefinito su {args.bridge}: indicalo con --gw")
-    args.id = args.id or int(_out(["pvesh", "get", "/cluster/nextid"]).strip())
+            raise CtError(_("nessun gateway predefinito su {v}: indicalo con --gw", v=args.bridge))
+        if address_in_use(args.ip.split("/")[0]):
+            raise CtError(_("all'indirizzo {v} risponde già qualcosa: scegline uno libero", v=args.ip.split("/")[0]))
+    args.id = args.id or next_id()
     if str(args.id) in existing:
-        raise CtError(f"il CT {args.id} esiste già: scegli un altro --id, o usa --update {args.id}")
+        raise CtError(_("il CT {v} esiste già: scegli un altro --id, o usa --update {v}", v=args.id))
 
     local = _out(["pveam", "list", args.template_storage])
     template_name = args.template or newest_template(local)
@@ -177,53 +250,66 @@ def run(args, out=print):
     if not template_name:
         template_name = newest_template(_out(["pveam", "available", "--section", "system"]))
         if not template_name:
-            raise CtError("nessun modello Debian standard fra quelli di `pveam available`: esegui `pveam update`")
+            raise CtError(_("nessun modello Debian standard fra quelli di `pveam available`: esegui `pveam update`"))
     template = f"{args.template_storage}:vztmpl/{template_name}"
 
-    out(f"CT          : {args.id} ({args.hostname}), non privilegiato, {args.cores} core, {args.memory} MB, "
-        f"{args.disk} GB su {args.storage}")
-    out(f"rete        : {args.bridge}, " + ("DHCP" if args.ip == "dhcp" else f"{args.ip} via {args.gw}"))
-    out(f"modello     : {template}" + ("" if have else "  (da scaricare)"))
-    out(f"pacchetti   : {' '.join(PACKAGES)}")
-    out(f"codice      : {CODE_DIR} -> /opt/dobermann, poi tools/install.py")
+    out(_("CT          : {id} ({name}), non privilegiato, {cores} core, {mem} MB, {disk} GB su {st}", id=args.id,
+          name=args.hostname, cores=args.cores, mem=args.memory, disk=args.disk, st=args.storage))
+    out(_("rete        : {v}", v=f"{args.bridge}, " + ("DHCP" if args.ip == "dhcp" else f"{args.ip} via {args.gw}")))
+    out(_("modello     : {v}", v=template) + ("" if have else "  " + _("(da scaricare)")))
+    out(_("pacchetti   : {v}", v=" ".join(PACKAGES)))
+    out(_("codice      : {v} -> /opt/dobermann, poi tools/install.py", v=CODE_DIR))
     if not args.apply:
-        out("\nPROVA A VUOTO: nulla è stato cambiato. Rilancia con --apply per creare il CT.")
-        return 0
+        out("\n" + _("PROVA A VUOTO: nulla è stato cambiato. Rilancia con --apply per creare il CT."))
+        return {}
 
     if not have:
-        out(f"  ..  scarico {template_name}")
+        out("  ..  " + _("scarico {v}", v=template_name))
         _out(["pveam", "download", args.template_storage, template_name])
     for cmd in create_plan(args, template):
         _out(cmd)
-    out(f"  ok  CT {args.id} creato e avviato")
+    out("  ok  " + _("CT {v} creato e avviato", v=args.id))
     wait_for_network(args.id)
     install_packages(args.id, out)
-    install_code(args.id, out)
-    addr = ct_address(args.id) or "<indirizzo del CT>"
-    out(f"\nPannello: https://{addr}/  (alla prima visita scegli la password)")
-    return 0
+    fixed = None if args.ip == "dhcp" else args.ip.split("/")[0]
+    result = install_code(args.id, out, install_args(args, fixed), password)
+    return dict(result, ctid=args.id, address=fixed or ct_address(args.id))
 
 
 def main(argv=None):
+    i18n.set_language(os.environ.get("LC_ALL") or os.environ.get("LANG"))
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--ip", help="indirizzo/maschera del CT (es. 192.168.1.50/24) oppure dhcp")
-    ap.add_argument("--gw", help="gateway (predefinito: quello dell'host sul bridge)")
-    ap.add_argument("--id", type=int, help="numero del CT (predefinito: il primo libero)")
+    ap.add_argument("--ip", help=_("indirizzo/maschera del CT (es. 192.168.1.50/24) oppure dhcp"))
+    ap.add_argument("--gw", help=_("gateway (predefinito: quello dell'host sul bridge)"))
+    ap.add_argument("--id", type=int, help=_("numero del CT (predefinito: il primo libero)"))
     ap.add_argument("--hostname", default="dobermann")
     ap.add_argument("--bridge", default="vmbr0")
-    ap.add_argument("--storage", default="local-lvm", help="dove sta il disco del CT")
-    ap.add_argument("--template-storage", default="local", help="dove stanno i modelli dei CT")
-    ap.add_argument("--template", help="nome del modello da usare (predefinito: il Debian più recente già sull'host)")
+    ap.add_argument("--storage", default="local-lvm", help=_("dove sta il disco del CT"))
+    ap.add_argument("--template-storage", default="local", help=_("dove stanno i modelli dei CT"))
+    ap.add_argument("--template", help=_("nome del modello da usare (predefinito: il Debian più recente già sull'host)"))
     ap.add_argument("--disk", type=int, default=4, help="GB")
     ap.add_argument("--memory", type=int, default=256, help="MB")
     ap.add_argument("--cores", type=int, default=1)
-    ap.add_argument("--update", type=int, metavar="ID", help="aggiorna il codice nel CT esistente ID")
-    ap.add_argument("--apply", action="store_true", help="esegui (altrimenti è una prova a vuoto)")
+    ap.add_argument("--update", type=int, metavar="ID", help=_("aggiorna il codice nel CT esistente ID"))
+    ap.add_argument("--language", choices=list(i18n.available()), help=_("lingua del pannello e delle mail"))
+    ap.add_argument("--http", action="store_true", help=_("pannello in HTTP invece che HTTPS"))
+    ap.add_argument("--no-name", action="store_true", help=_("non annunciare il nome {v}", v=DEFAULT_NAME))
+    ap.add_argument("--apply", action="store_true", help=_("esegui (altrimenti è una prova a vuoto)"))
     args = ap.parse_args(argv)
+    if args.language:
+        i18n.set_language(args.language)
     try:
-        return run(args)
+        result = run(args)
+        if result.get("address"):
+            scheme = "https" if result.get("https") else "http"
+            print("\n" + _("Pannello: {v}", v=f"{scheme}://{result['address']}/"))
+        if result.get("fingerprint"):
+            print(_("Impronta SHA-256 del certificato: {v}", v=result["fingerprint"]))
+        if result.get("setup_code"):
+            print(_("Codice per il primo accesso: {v}", v=result["setup_code"]))
+        return 0
     except CtError as e:
-        print("ERRORE:", e, file=sys.stderr)
+        print(_("ERRORE:"), e, file=sys.stderr)
         return 1
 
 

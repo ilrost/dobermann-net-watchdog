@@ -30,7 +30,8 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from dobermann import config  # noqa: E402
+from dobermann import config, i18n  # noqa: E402
+from dobermann.i18n import _  # noqa: E402
 
 DAYS = 825
 _NAME_OK = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
@@ -69,17 +70,17 @@ def san_entries(names):
             entries.append(f"IP:{ipaddress.ip_address(name)}")
         except ValueError:
             if not _NAME_OK.match(name):
-                raise CertError(f"not a valid host name or IP address: {raw!r}") from None
+                raise CertError(_("non è un nome o un indirizzo IP valido: {v}", v=repr(raw))) from None
             entries.append(f"DNS:{name}")
     if not entries:
-        raise CertError("no name or address to put in the certificate: pass --san")
+        raise CertError(_("nessun nome o indirizzo da mettere nel certificato: usa --san"))
     return entries
 
 
 def generate(cert_path, key_path, sans, run=subprocess.run):
     openssl = shutil.which("openssl")
     if not openssl:
-        raise CertError("`openssl` not found (package openssl): needed to create the certificate")
+        raise CertError(_("manca `openssl` (pacchetto openssl): serve per creare il certificato"))
     os.makedirs(os.path.dirname(cert_path), exist_ok=True)
     cn = next((s.split(":", 1)[1] for s in sans if s.startswith("DNS:")), sans[0].split(":", 1)[1])
     # write next to the destination, then rename: a failure never leaves a certificate without its key
@@ -96,7 +97,7 @@ def generate(cert_path, key_path, sans, run=subprocess.run):
                    "-addext", "extendedKeyUsage=serverAuth"],
                   capture_output=True, text=True, timeout=60)
         if res.returncode != 0:
-            raise CertError("openssl failed: " + (res.stderr or res.stdout).strip().splitlines()[-1])
+            raise CertError(_("openssl non è riuscito: {v}", v=(res.stderr or res.stdout).strip().splitlines()[-1]))
         os.chmod(tmp_key, 0o600)
         os.chmod(tmp_crt, 0o644)
         owner = os.stat(os.path.dirname(cert_path))
@@ -117,22 +118,26 @@ def fingerprint(cert_path):
 
 
 def main(argv=None):
+    i18n.set_language(os.environ.get("LC_ALL") or os.environ.get("LANG"))
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--san", action="append", default=[], help="a host name or IP address the certificate must be valid for (repeatable; default: detected)")
-    ap.add_argument("--force", action="store_true", help="replace an existing certificate and key")
+    ap.add_argument("--san", action="append", default=[],
+                    help=_("un nome o un indirizzo IP per cui il certificato deve valere (ripetibile; predefinito: quelli rilevati)"))
+    ap.add_argument("--force", action="store_true", help=_("sostituisce certificato e chiave esistenti"))
     args = ap.parse_args(argv)
     cert, key = os.path.join(config.config_dir(), "tls.crt"), os.path.join(config.config_dir(), "tls.key")
     try:
         if (os.path.exists(cert) or os.path.exists(key)) and not args.force:
-            raise CertError(f"{cert} or {key} already exists: use --force to replace them")
+            raise CertError(_("{a} o {b} esiste già: usa --force per sostituirli", a=cert, b=key))
         sans = san_entries(args.san or detect_names())
         generate(cert, key, sans)
     except CertError as e:
-        print("ERROR:", e, file=sys.stderr)
+        print(_("ERRORE:"), e, file=sys.stderr)
         return 1
-    print(f"certificate: {cert}\nkey        : {key} (0600)\nvalid for  : {', '.join(sans)}  ({DAYS} days)")
+    print(_("certificato: {v}", v=cert))
+    print(_("chiave     : {v} (0600)", v=key))
+    print(_("valido per : {v} ({n} giorni)", v=", ".join(sans), n=DAYS))
     print(f"SHA-256    : {fingerprint(cert)}")
-    print("\nRestart the web panel to switch to HTTPS (systemctl restart dobermann-web).")
+    print("\n" + _("Riavvia il pannello per passare al nuovo certificato (systemctl restart dobermann-web)."))
     return 0
 
 

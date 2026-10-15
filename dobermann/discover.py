@@ -15,6 +15,7 @@ import ipaddress
 import re
 
 from dobermann import adapters, probes
+from dobermann.i18n import _
 
 MIN_CONFIDENCE = 0.5
 # RFC 1918 only: the operator's CGNAT (100.64/10) or a public address means nothing of ours is above
@@ -64,33 +65,33 @@ def propose_chain(extra_ips=(), timeout=3.0):
     notes, used = [], set()
     gw = probes.default_gateway()
     if not gw:
-        return {"version": 1, "nodes": []}, ["Nessun gateway predefinito su questa macchina: la rete non è configurata?"]
+        return {"version": 1, "nodes": []}, [_("Nessun gateway predefinito su questa macchina: la rete non è configurata?")]
     nodes = []
-    node, best, _ = _node(gw, "router", used, timeout)
+    node, best, _unused = _node(gw, "router", used, timeout)
     nodes.append(node)
     if best is None:
-        notes.append(f"Il router {gw} non espone un'interfaccia che dobermann sa leggere (per esempio UPnP è "
-                     "disattivato): sarà sorvegliato solo dall'esterno, con ping e misure verso internet.")
+        notes.append(_("Il router {v} non espone un'interfaccia che dobermann sa leggere (per esempio UPnP è "
+                       "disattivato): sarà sorvegliato solo dall'esterno, con ping e misure verso internet.", v=gw))
     tried = {gw}
     if best is not None and not extra_ips:
         r = adapters.run_sample(adapters.get(best.adapter_id)(gw, options=best.options, timeout=timeout))
         cand = upstream_candidate(r.facts.get("wan.ip"))
         if cand and cand not in tried:
             tried.add(cand)
-            up, up_best, _ = _node(cand, "modem", used, timeout)
+            up, up_best, _unused = _node(cand, "modem", used, timeout)
             if up_best is not None or probes.ping(cand, count=2)[0] < 100:
                 nodes.append(up)
-                notes.append(f"Il router ha un indirizzo WAN privato ({r.facts['wan.ip']}): c'è un apparato a monte, "
-                             f"trovato a {cand}.")
+                notes.append(_("Il router ha un indirizzo WAN privato ({ip}): c'è un apparato a monte, trovato a {v}.",
+                               ip=r.facts["wan.ip"], v=cand))
     for ip in extra_ips:
         if ip in tried:
             continue
         tried.add(ip)
-        up, up_best, _ = _node(ip, "modem", used, timeout)
+        up, up_best, _unused = _node(ip, "modem", used, timeout)
         nodes.append(up)
         if up_best is None:
-            notes.append(f"{ip}: nessun adattatore lo riconosce; resta nella catena senza dati propri.")
+            notes.append(_("{v}: nessun adattatore lo riconosce; resta nella catena senza dati propri.", v=ip))
     if len(nodes) == 1:
-        notes.append("Se fra il router e internet c'è un modem in modalità bridge o IP passthrough, dobermann non lo "
-                     "vede da solo: aggiungine l'indirizzo.")
+        notes.append(_("Se fra il router e internet c'è un modem in modalità bridge o IP passthrough, dobermann non lo "
+                       "vede da solo: aggiungine l'indirizzo."))
     return {"version": 1, "nodes": nodes}, notes

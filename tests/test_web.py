@@ -65,6 +65,19 @@ class TestAuth(WebCase):
             status, url, _ = self.get(path)
             self.assertTrue(url.endswith("/login"), path)
 
+    def test_with_a_setup_code_the_first_visit_must_give_it(self):
+        from dobermann.web import auth
+        code = auth.new_setup_code()
+        _, _, body = self.get("/login")
+        self.assertIn("setup_code", body)
+        status, _, _ = self.post("/login", password="password1", password2="password1", setup_code="WRONG-CODE")
+        self.assertEqual(status, 401)
+        self.assertFalse(auth.is_configured())
+        status, url, _ = self.post("/login", password="password1", password2="password1", setup_code=code.lower())
+        self.assertTrue(url.endswith("/setup"))
+        self.assertFalse(auth.setup_code_required())
+        self.assertFalse(os.path.exists(os.path.join(config.config_dir(), "setup-code")))
+
     def test_first_visit_chooses_the_password_then_login_works(self):
         _, _, body = self.get("/login")
         self.assertIn("Conferma password", body)
@@ -305,3 +318,47 @@ class TestSettings(WebCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestToolbarAndAddress(WebCase):
+    def test_every_page_has_the_four_icons(self):
+        self.login()
+        for path in ("/watchdash", "/report", "/setup"):
+            _, _, body = self.get(path)
+            for target in ('action="/language"', 'href="/setup"', 'action="/logout-all"', 'href="/logout"'):
+                self.assertIn(target, body, (path, target))
+
+    def test_language_menu_changes_the_language_and_returns_to_the_page(self):
+        self.login()
+        status, url, body = self.post("/language", lang="it", next="/report")
+        self.assertTrue(url.endswith("/report"))
+        self.assertIn('<html lang="it">', body)
+        self.assertEqual(config.load()["language"], "it")
+        _, url, _ = self.post("/language", lang="xx", next="//evil.example")
+        self.assertTrue(url.endswith("/watchdash"))
+        self.assertEqual(config.load()["language"], "it")
+
+    def test_log_out_everywhere(self):
+        self.login()
+        self.post("/logout-all")
+        _, url, _ = self.get("/setup")
+        self.assertTrue(url.endswith("/login"))
+
+    def test_address_change_on_proxmox_prepares_the_host_command(self):
+        self.login()
+        raw = json.load(open(config.config_file())) if os.path.exists(config.config_file()) else {}
+        raw["platform"] = {"kind": "proxmox-lxc", "ctid": 210, "bridge": "vmbr0"}
+        config.save(raw)
+        _, _, body = self.post("/setup", action="change_ip", new_ip="192.0.2.60/24", new_gw="192.0.2.1")
+        self.assertIn("pct set 210 -net0 name=eth0,bridge=vmbr0,firewall=1,gw=192.0.2.1", body)
+        self.assertIn("ip=192.0.2.60/24,type=veth", body)
+        self.assertEqual(config.load()["dashboard_url"], "http://192.0.2.60/watchdash")
+        status, _, body = self.post("/setup", action="change_ip", new_ip="192.0.2.60/24", new_gw="198.51.100.1")
+        self.assertEqual(status, 400)
+
+    def test_panel_link_is_saved_from_the_address_section(self):
+        self.login()
+        self.post("/setup", action="save_link", dashboard_url="https://192.0.2.9/watchdash")
+        self.assertEqual(config.load()["dashboard_url"], "https://192.0.2.9/watchdash")
+        status, _, _ = self.post("/setup", action="save_link", dashboard_url="javascript:alert(1)")
+        self.assertEqual(status, 400)

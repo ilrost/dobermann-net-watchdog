@@ -1,0 +1,47 @@
+<style>
+.tb{ display:flex; align-items:center; gap:4px; margin-left:auto; }
+.tb > a, .tb summary{ display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px;
+  border-radius:8px; border:1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+  cursor:pointer; list-style:none; box-sizing:border-box; text-decoration:none; }
+.tb summary::-webkit-details-marker{ display:none; }
+.tb > a:hover, .tb summary:hover, .tb details[open] summary{ color: var(--text-primary); border-color: var(--text-muted); }
+.tb svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.tb details{ position:relative; }
+.tb .menu{ position:absolute; right:0; top:40px; z-index:50; min-width:210px; padding:6px; border-radius:10px;
+  background: var(--surface-1); border:1px solid var(--border); box-shadow: 0 6px 24px rgba(0,0,0,.14); }
+.tb .menu form{ margin:0; }
+.tb .menu button, .tb .menu a{ display:block; width:100%; margin:0; padding:8px 10px; border:0; border-radius:6px;
+  background:none; color: var(--text-primary); font: inherit; font-size:13px; font-weight:400; text-align:left;
+  text-decoration:none; cursor:pointer; box-sizing:border-box; }
+.tb .menu button:hover, .tb .menu a:hover{ background: var(--surface-2); opacity:1; }
+.tb .menu .current{ font-weight:600; }
+.tb .menu .current::after{ content:" ✓"; color: var(--s1); }
+.tb .menu .info{ padding:6px 10px 8px; font-size:11.5px; color: var(--text-muted); border-bottom:1px solid var(--border); margin-bottom:4px; }
+</style>
+<nav class="tb" aria-label="[[Menu]]">
+  <details>
+    <summary title="[[Lingua]]" aria-label="[[Lingua]]"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg></summary>
+    <div class="menu">__LANG_ITEMS__</div>
+  </details>
+  <a href="/setup" title="[[Impostazioni]]" aria-label="[[Impostazioni]]"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></a>
+  <details>
+    <summary title="[[Utente]]" aria-label="[[Utente]]"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></summary>
+    <div class="menu">
+      <div class="info">[[Amministratore]]<br>__SINCE__</div>
+      <a href="/setup#password">[[Cambia password]]</a>
+      <form method="post" action="/logout-all"><button type="submit">[[Esci da tutti i dispositivi]]</button></form>
+    </div>
+  </details>
+  <a href="/logout" title="[[Esci]]" aria-label="[[Esci]]"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></a>
+</nav>
+<script>
+// one menu open at a time, and a click elsewhere closes it
+document.addEventListener('click', function(e){
+  document.querySelectorAll('.tb details[open]').forEach(function(d){ if (!d.contains(e.target)) d.removeAttribute('open'); });
+});
+document.querySelectorAll('.tb details').forEach(function(d){
+  d.addEventListener('toggle', function(){
+    if (d.open) document.querySelectorAll('.tb details[open]').forEach(function(o){ if (o !== d) o.removeAttribute('open'); });
+  });
+});
+</script>

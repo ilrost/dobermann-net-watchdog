@@ -56,7 +56,7 @@ def source_info(cfg, chain_spec):
     return {
         "chain": " → ".join(["dobermann"] + [f"{n.get('label') or n['id']} ({n.get('ip')})" for n in nodes] + ["internet"])
         if nodes else None,
-        "anchors": [ip for _, ip in cfg["anchors"]],
+        "anchors": [ip for _name, ip in cfg["anchors"]],
         "dns_local": cfg["dns"]["local"] or config.system_resolver(),
         "dns_external": cfg["dns"]["external"],
         "link": Chain(chain_spec).link_description() if nodes else None,

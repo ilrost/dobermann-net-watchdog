@@ -1,0 +1,21 @@
+[Unit]
+Description=dobermann: il nome @MDNS_NAME@ sulla rete di casa (mDNS)
+After=avahi-daemon.service network-online.target
+Requires=avahi-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dobermann
+Group=dobermann
+Environment=DOBERMANN_CONFIG_DIR=@CONFIG_DIR@
+Environment=DOBERMANN_STATE_DIR=@STATE_DIR@
+WorkingDirectory=@CODE_DIR@
+# announces the name with this machine's current address (the one its default route leaves from)
+ExecStart=/usr/bin/python3 -m dobermann mdns @MDNS_NAME@
+NoNewPrivileges=yes
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

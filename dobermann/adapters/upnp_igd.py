@@ -19,6 +19,7 @@ import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
 from dobermann.adapters.base import LEVEL_STANDARD, Adapter, Detection
+from dobermann.i18n import _
 
 SSDP_ADDR = ("239.255.255.250", 1900)
 IGD_TYPES = ("urn:schemas-upnp-org:device:InternetGatewayDevice:1",
@@ -173,15 +174,15 @@ class UpnpIgd(Adapter):
             st = soap(info["conn_url"], info["conn_type"], "GetStatusInfo", timeout)
             if st is None:
                 confidence = 0.6
-                notes.append("Descrizione UPnP presente, ma il router non risponde alle richieste di stato.")
+                notes.append(_("Descrizione UPnP presente, ma il router non risponde alle richieste di stato."))
         if info.get("common_url"):
             rx = soap(info["common_url"], info["common_type"], "GetTotalBytesReceived", timeout) or {}
             link = soap(info["common_url"], info["common_type"], "GetCommonLinkProperties", timeout) or {}
             if rx.get("NewTotalBytesReceived") == "0" and link.get("NewLayer1DownstreamMaxBitRate") in ("0", None):
                 # e.g. a FRITZ!Repeater: same UPnP stack as the router, but no WAN of its own
                 confidence = min(confidence, 0.3)
-                notes.append("Espone UPnP ma non ha traffico WAN: probabilmente non è il router verso "
-                             "internet (es. repeater o access point).")
+                notes.append(_("Espone UPnP ma non ha traffico WAN: probabilmente non è il router verso "
+                               "internet (es. repeater o access point)."))
         options = {"location": loc, **info}
         return Detection(cls.id, confidence, vendor=info.get("vendor"), model=info.get("model"),
                          notes=notes, options=options)

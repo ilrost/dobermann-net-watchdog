@@ -1,6 +1,7 @@
 """Installer and Proxmox CT script: the parts that can be checked without systemd or a Proxmox host."""
 import argparse
 import io
+import json
 import os
 import re
 import sys
@@ -14,6 +15,45 @@ import proxmox_ct  # noqa: E402
 
 
 class TestInstall(unittest.TestCase):
+    @staticmethod
+    def args(tmp, *extra):
+        return install.parser().parse_args(["--config-dir", os.path.join(tmp, "etc"), "--state-dir", os.path.join(tmp, "var"),
+                                            "--systemd-dir", tmp, "--bin-path", os.path.join(tmp, "dobermann"),
+                                            "--nullmailer-remotes", os.path.join(tmp, "remotes"), *extra])
+
+    def test_an_update_keeps_the_choices_of_the_install(self):
+        saved = {"https": False, "name": "dobermann.local", "bind": "192.0.2.5"}
+        a = install.parser().parse_args([])
+        self.assertEqual(install.resolve_choices(a, saved), (False, "dobermann.local", "192.0.2.5"))
+        self.assertEqual(install.resolve_choices(a, {}), (True, None, None))
+        a = install.parser().parse_args(["--https", "--no-name", "--bind", ""])
+        self.assertEqual(install.resolve_choices(a, saved), (True, None, None))
+
+    def test_web_env_keeps_other_lines(self):
+        self.assertEqual(install.web_env_text("DOBERMANN_PORT=8080\nDOBERMANN_BIND=1.2.3.4\n", "192.0.2.5"),
+                         "DOBERMANN_PORT=8080\nDOBERMANN_BIND=192.0.2.5\n")
+        self.assertEqual(install.web_env_text("DOBERMANN_BIND=1.2.3.4\n", None), "")
+
+    def test_avahi_in_a_container(self):
+        self.assertIn("#rlimit-nproc=3", install.avahi_conf_for_container("[rlimits]\nrlimit-nproc=3\n"))
+        self.assertIsNone(install.avahi_conf_for_container("[rlimits]\n#rlimit-nproc=3\n"))
+
+    def test_config_merge_keeps_what_the_panel_saved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, "config.json"), "w") as f:
+                json.dump({"mail": {"to": "a@example.org"}, "language": "it"}, f)
+            self.assertTrue(install.update_config(tmp, language="de", url="https://192.0.2.5/watchdash"))
+            self.assertFalse(install.update_config(tmp, language="de"))
+            with open(os.path.join(tmp, "config.json")) as f:
+                cfg = json.load(f)
+            self.assertEqual(cfg, {"mail": {"to": "a@example.org"}, "language": "de",
+                                   "dashboard_url": "https://192.0.2.5/watchdash"})
+
+    def test_only_local_names(self):
+        self.assertTrue(install.valid_name("dobermann.local"))
+        self.assertFalse(install.valid_name("dobermann.lan"))
+        self.assertFalse(install.valid_name("a b.local"))
+
     def test_units_have_no_placeholder_left_and_run_as_the_service_user(self):
         for svc in install.SERVICES:
             with open(os.path.join(install.UNIT_DIR, svc + ".service")) as f:
@@ -25,9 +65,7 @@ class TestInstall(unittest.TestCase):
 
     def test_dry_run_changes_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
-            args = argparse.Namespace(config_dir=os.path.join(tmp, "etc"), state_dir=os.path.join(tmp, "var"),
-                                      systemd_dir=tmp, bin_path=os.path.join(tmp, "dobermann"), apply=False,
-                                      nullmailer_remotes=os.path.join(tmp, "remotes"), no_https=False)
+            args = self.args(tmp)
             calls = []
             self.assertEqual(install.run(args, out=lambda *_: None, runner=calls.append), 0)
             self.assertEqual(os.listdir(tmp), [])
@@ -36,9 +74,7 @@ class TestInstall(unittest.TestCase):
     @unittest.skipUnless(hasattr(os, "geteuid") and os.geteuid() == 0, "needs root")
     def test_apply_writes_units_and_command_and_restarts(self):
         with tempfile.TemporaryDirectory() as tmp:
-            args = argparse.Namespace(config_dir=os.path.join(tmp, "etc"), state_dir=os.path.join(tmp, "var"),
-                                      systemd_dir=tmp, bin_path=os.path.join(tmp, "dobermann"), apply=True,
-                                      nullmailer_remotes=os.path.join(tmp, "remotes"), no_https=False)
+            args = self.args(tmp, "--apply")
             calls = []
             install.run(args, out=lambda *_: None, runner=calls.append)
             self.assertTrue(os.path.exists(os.path.join(tmp, "dobermann-web.service")))

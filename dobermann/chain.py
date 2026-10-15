@@ -16,6 +16,7 @@ import ipaddress
 from concurrent.futures import ThreadPoolExecutor
 
 from dobermann import adapters, probes
+from dobermann.i18n import _
 
 ROLES = ("router", "modem", "access", "isp_edge")
 
@@ -98,7 +99,7 @@ class Chain:
 
     def link_description(self):
         r = self.radio_uplink()
-        return f"radio (rete mobile, tramite {r.label})" if r else "cablata (fibra, DSL o cavo)"
+        return _("radio (rete mobile, tramite {v})", v=r.label) if r else _("cablata (fibra, DSL o cavo)")
 
     def cellular_nodes(self):
         """Devices whose radio state explains the line's events: only the radio uplink. A radio device

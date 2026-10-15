@@ -13,6 +13,8 @@ import os
 import re
 import ssl
 
+from dobermann.i18n import _
+
 DEFAULT_BIND = "0.0.0.0"
 DEFAULT_HTTP_PORT = 80
 DEFAULT_TLS_PORT = 443
@@ -31,9 +33,9 @@ def _port(env, name, default):
     try:
         value = int(raw)
     except ValueError:
-        raise ListenError(f"{name}={raw!r} non è un numero") from None
+        raise ListenError(_("{v} non è un numero", v=f"{name}={raw!r}")) from None
     if not 1 <= value <= 65535:
-        raise ListenError(f"{name}={value} è fuori da 1-65535")
+        raise ListenError(_("{v} è fuori da 1-65535", v=f"{name}={value}"))
     return value
 
 
@@ -43,16 +45,16 @@ def resolve(cert_path, key_path, env=os.environ, exists=os.path.exists):
     try:
         ipaddress.ip_address(bind)
     except ValueError:
-        raise ListenError(f"DOBERMANN_BIND={bind!r} non è un indirizzo IP") from None
+        raise ListenError(_("{v} non è un indirizzo IP", v=f"DOBERMANN_BIND={bind!r}")) from None
     http_port = _port(env, "DOBERMANN_PORT", DEFAULT_HTTP_PORT)
     tls_port = _port(env, "DOBERMANN_TLS_PORT", DEFAULT_TLS_PORT)
     have_cert, have_key = exists(cert_path), exists(key_path)
     if have_cert != have_key:
-        raise ListenError(f"per HTTPS servono entrambi i file, ne esiste uno solo: manca "
-                          f"{key_path if have_cert else cert_path}")
+        raise ListenError(_("per HTTPS servono entrambi i file, ne esiste uno solo: manca {v}",
+                            v=key_path if have_cert else cert_path))
     tls = have_cert and have_key
     if tls and http_port == tls_port:
-        raise ListenError(f"le porte HTTP e HTTPS sono entrambe {http_port}")
+        raise ListenError(_("le porte HTTP e HTTPS sono entrambe {v}", v=http_port))
     return {"bind": bind, "http_port": http_port, "tls": tls, "tls_port": tls_port, "cert": cert_path, "key": key_path}
 
 
@@ -62,7 +64,8 @@ def make_ssl_context(cert_path, key_path):
     try:
         ctx.load_cert_chain(cert_path, key_path)
     except (ssl.SSLError, OSError) as e:
-        raise ListenError(f"impossibile caricare il certificato HTTPS {cert_path} / chiave {key_path}: {e}") from e
+        raise ListenError(_("impossibile caricare il certificato HTTPS {c} / chiave {k}: {e}", c=cert_path, k=key_path,
+                            e=e)) from e
     return ctx
 
 

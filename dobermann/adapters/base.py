@@ -18,6 +18,7 @@ import time
 from dataclasses import dataclass, field
 
 from dobermann import facts as factlib
+from dobermann.i18n import _
 
 LEVEL_STANDARD = 2      # a documented protocol (UPnP IGD, TR-064, SNMP...)
 LEVEL_UNOFFICIAL = 3    # a vendor's undocumented web API; optional, may break with a firmware update
@@ -85,6 +86,6 @@ def run_sample(adapter):
         raw, error = {}, f"{type(e).__name__}: {e}"
     clean, dropped = factlib.validate(raw, allowed=adapter.provides)
     if error is None and not clean:
-        error = "nessuna risposta dall'apparato"
+        error = _("nessuna risposta dall'apparato")
     return SampleResult(facts=clean, ok=bool(clean), error=error, dropped=dropped,
                         duration_s=round(time.monotonic() - t0, 3))

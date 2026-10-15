@@ -69,7 +69,7 @@ def dns_query(server, domain, timeout=2):
     t0 = time.monotonic()
     try:
         s.sendto(packet, (server, 53))
-        data, _ = s.recvfrom(512)
+        data, _addr = s.recvfrom(512)
         elapsed = (time.monotonic() - t0) * 1000
         if len(data) >= 12 and data[0:2] == struct.pack(">H", txid):
             ancount = struct.unpack(">H", data[6:8])[0]

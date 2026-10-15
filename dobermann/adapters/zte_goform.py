@@ -28,6 +28,7 @@ import urllib.request
 from http.cookiejar import CookieJar
 
 from dobermann.adapters.base import LEVEL_UNOFFICIAL, Adapter, Detection
+from dobermann.i18n import _
 
 GET_PATH = "/goform/goform_get_cmd_process"
 SET_PATH = "/goform/goform_set_cmd_process"
@@ -101,7 +102,7 @@ def to_facts(fields):
 
 class ZteGoform(Adapter):
     id = "zte_goform"
-    name = "ZTE 4G/5G (interfaccia web, non ufficiale)"
+    name = "ZTE 4G/5G (goform)"
     level = LEVEL_UNOFFICIAL
     accepts_credentials = True
     single_session = True
@@ -157,10 +158,10 @@ class ZteGoform(Adapter):
             return None
         model, fw = data.get("model_name") or None, data.get("wa_inner_version") or None
         confidence = 0.9 if (model or data.get("network_type")) else 0.6
-        notes = ["Interfaccia non ufficiale: può smettere di funzionare dopo un aggiornamento del firmware.",
-                 "Senza password legge servizio, tecnologia radio e segnale. Con la password aggiunge "
-                 "cella, banda e SINR, ma il router ammette un solo accesso: dobermann si ritira quando "
-                 "entri tu nella pagina del router."]
+        notes = [_("Interfaccia non ufficiale: può smettere di funzionare dopo un aggiornamento del firmware."),
+                 _("Senza password legge servizio, tecnologia radio e segnale. Con la password aggiunge "
+                   "cella, banda e SINR, ma il router ammette un solo accesso: dobermann si ritira quando "
+                   "entri tu nella pagina del router.")]
         return Detection(cls.id, confidence, vendor="ZTE", model=model, firmware=fw, notes=notes,
                          options={"base_url": base})
 
@@ -211,7 +212,7 @@ class ZteGoform(Adapter):
             self._opener = opener
             self._pause_reason = None
             return True
-        self._pause(self.bad_password_s, f"password rifiutata dal router (codice {result})")
+        self._pause(self.bad_password_s, _("password rifiutata dal router (codice {v})", v=result))
         return False
 
     # -- sampling -------------------------------------------------------------------------------
@@ -229,7 +230,7 @@ class ZteGoform(Adapter):
             if data.get("loginfo") == "ok":
                 return to_facts(data)
             # our session is gone: the user most likely opened the router's web page
-            self._pause(self.yield_s, "sessione lasciata al proprietario (accesso alla pagina del router)")
+            self._pause(self.yield_s, _("sessione lasciata a chi usa la pagina del router"))
             return to_facts({k: data.get(k) for k in PUBLIC_FIELDS})
         try:
             return to_facts(self._get(self.base, PUBLIC_FIELDS, timeout=self.timeout))
@@ -238,9 +239,9 @@ class ZteGoform(Adapter):
 
     def status(self):
         if not self._password():
-            return {"modalità": "senza login"}
+            return {_("modalità"): _("senza login")}
         if self._paused():
             left = int(self._paused_until - self._clock())
-            return {"modalità": "senza login (in pausa)", "motivo": self._pause_reason,
-                    "riprova tra": f"{left // 60} min"}
-        return {"modalità": "con login" if self._opener else "con login (non ancora collegato)"}
+            return {_("modalità"): _("senza login (in pausa)"), _("motivo"): self._pause_reason,
+                    _("riprova tra"): f"{left // 60} min"}
+        return {_("modalità"): _("con login") if self._opener else _("con login (non ancora collegato)")}

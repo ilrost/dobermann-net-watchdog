@@ -9,7 +9,8 @@ import os
 import threading
 import time
 
-from dobermann import alerts, config, diagnosis, narrative, notify, probes, store
+from dobermann import alerts, config, diagnosis, i18n, narrative, notify, probes, store
+from dobermann.i18n import _
 from dobermann.chain import Chain
 from dobermann.incidents import Tracker
 
@@ -65,6 +66,7 @@ class Engine:
         the edit is retried on the next sample."""
         mtimes = config.mtimes()
         cfg = config.load()
+        i18n.set_language(cfg.get("language"))
         secrets = config.load_secrets()
         chain = Chain(config.load_chain(), secrets)
         self.cfg, self.secrets, self.chain = cfg, secrets, chain
@@ -158,7 +160,8 @@ class Engine:
             except (OSError, ValueError) as e:
                 # keep measuring with the previous configuration; say so once per broken edit
                 if self._bad_mtimes != mtimes:
-                    print(f"configurazione non valida, resta quella precedente: {type(e).__name__}: {e}", flush=True)
+                    print(_("configurazione non valida, resta quella precedente: {v}", v=f"{type(e).__name__}: {e}"),
+                          flush=True)
                     self._bad_mtimes = mtimes
         ts = time.time() if ts is None else ts
         m, results = measured if measured is not None else self.measure(ts)
@@ -225,7 +228,7 @@ class Engine:
         if last is None:
             return
         since, until = alerts.period_for(slot, s)
-        title = "Riepilogo del giorno" if s["frequency"] == "daily" else "Riepilogo della settimana"
+        title = _("Riepilogo del giorno") if s["frequency"] == "daily" else _("Riepilogo della settimana")
         radio = self.chain.radio_uplink()
         subject, body, quiet = alerts.summary_message(self.con, since, until, alerts.rules(self.cfg["mail"]),
                                                       self.cfg.get("dashboard_url"), title=title,
@@ -239,17 +242,18 @@ class Engine:
         except (OSError, TypeError):
             return
         if size > DB_SIZE_ALERT_BYTES and ts - self.db_alert_ts > DB_SIZE_ALERT_COOLDOWN_S:
-            self._mail("[dobermann] Database oltre la soglia",
-                       f"Il database ha superato {DB_SIZE_ALERT_BYTES / 1e6:.0f}MB (ora {size / 1e6:.1f}MB) "
-                       f"nonostante la conservazione a {self.cfg['retention_days']} giorni.")
+            self._mail("[dobermann] " + _("Database oltre la soglia"),
+                       _("Il database ha superato {limit}MB (ora {size}MB) nonostante la conservazione a {days} giorni.",
+                         limit=f"{DB_SIZE_ALERT_BYTES / 1e6:.0f}", size=f"{size / 1e6:.1f}",
+                         days=self.cfg["retention_days"]))
             self.db_alert_ts = ts
 
     def run(self):
-        print(f"dobermann: catena {[(n.label, n.ip, n.adapter_id) for n in self.chain.nodes]}", flush=True)
+        print(_("dobermann: catena {v}", v=[(n.label, n.ip, n.adapter_id) for n in self.chain.nodes]), flush=True)
         while True:
             t0 = time.monotonic()
             try:
                 self.step()
             except Exception as e:   # keep watching: one bad sample (or a bad config edit) must not end the service
-                print(f"campione fallito: {type(e).__name__}: {e}", flush=True)
+                print(_("campione fallito: {v}", v=f"{type(e).__name__}: {e}"), flush=True)
             time.sleep(max(0.2, self.interval() - (time.monotonic() - t0)))

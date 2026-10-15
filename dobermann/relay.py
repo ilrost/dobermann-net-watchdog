@@ -15,6 +15,8 @@ import os
 import shutil
 import subprocess
 
+from dobermann.i18n import _
+
 SENDMAIL = "/usr/sbin/sendmail"
 NULLMAILER_REMOTES = "/etc/nullmailer/remotes"
 NULLMAILER_TRIGGER = "/var/spool/nullmailer/trigger"
@@ -36,10 +38,11 @@ def remotes_line(smtp_cfg, password):
     space in any of them would silently become a different option: refused instead."""
     host, user = (smtp_cfg.get("host") or "").strip(), (smtp_cfg.get("username") or "").strip()
     if not host:
-        raise ValueError("serve il server SMTP del fornitore")
-    for label, value in (("server", host), ("utente", user), ("password", password or "")):
+        raise ValueError(_("serve il server SMTP del fornitore"))
+    for label, value in ((_("server"), host), (_("utente"), user), (_("password"), password or "")):
         if any(c.isspace() for c in value):
-            raise ValueError(f"{label}: non può contenere spazi (per le password per app di Gmail: scrivila senza spazi)")
+            raise ValueError(_("{v}: non può contenere spazi (per le password per app di Gmail: scrivila senza spazi)",
+                               v=label))
     parts = [host, "smtp", f"--port={int(smtp_cfg.get('port') or 587)}"]
     security = smtp_cfg.get("security", "starttls")
     if security == "starttls":
@@ -66,7 +69,8 @@ def submit(message_bytes, from_addr, to_addr, sendmail=SENDMAIL):
     r = subprocess.run([sendmail, "-i", "-f", from_addr, "--", to_addr], input=message_bytes,
                        capture_output=True, timeout=20)
     if r.returncode != 0:
-        print(f"relay: sendmail ha rifiutato la mail: {(r.stderr or r.stdout).decode(errors='replace').strip()}", flush=True)
+        print(_("relay: sendmail ha rifiutato la mail: {v}", v=(r.stderr or r.stdout).decode(errors="replace").strip()),
+              flush=True)
     return r.returncode == 0
 
 

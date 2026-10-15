@@ -8,21 +8,27 @@ whose facts are missing simply does not fire, and a less specific one further do
 import ipaddress
 from dataclasses import dataclass, field
 
-CAUSE_LABELS = {
-    "GATEWAY_UNRESPONSIVE": "Il router non risponde sulla rete locale",
-    "CELLULAR_NO_SERVICE": "Il modem mobile non ha servizio dall'operatore (nessuna cella utilizzabile)",
-    "LOCAL_LINK_DOWN": "Il router ha perso il collegamento fisico verso l'esterno (cavo, linea o apparato a monte)",
-    "WAN_DISCONNECTED": "Il router segnala la connessione a internet disconnessa",
-    "IP_CHANGE_DROP": "Interruzione dopo un cambio di IP pubblico",
-    "UPSTREAM_OUTAGE": "Internet irraggiungibile oltre il router (operatore o apparato a monte)",
-    "DNS_FAILURE_LOCAL": "Il DNS locale non risponde (internet funziona)",
-    "DNS_FAILURE_UPSTREAM": "Nessun server DNS risponde",
-    "PACKET_LOSS": "Perdita di pacchetti verso internet",
-    "HIGH_LATENCY": "Latenza alta verso internet",
-    "IP_RENEWAL_CYCLE": "Riconnessione per rinnovo dell'IP pubblico (routine, non un guasto)",
-    "CELLULAR_3G_FALLBACK": "Il modem mobile è ripiegato su 3G/2G (latenza o perdite da copertura)",
-    "PING_ARTIFACT": "Artefatto di misura, non un guasto (solo nello storico importato)",
+from dobermann.i18n import N_, _
+
+CAUSE_LABELS = {      # translated where shown: cause_label()
+    "GATEWAY_UNRESPONSIVE": N_("Il router non risponde sulla rete locale"),
+    "CELLULAR_NO_SERVICE": N_("Il modem mobile non ha servizio dall'operatore (nessuna cella utilizzabile)"),
+    "LOCAL_LINK_DOWN": N_("Il router ha perso il collegamento fisico verso l'esterno (cavo, linea o apparato a monte)"),
+    "WAN_DISCONNECTED": N_("Il router segnala la connessione a internet disconnessa"),
+    "IP_CHANGE_DROP": N_("Interruzione dopo un cambio di IP pubblico"),
+    "UPSTREAM_OUTAGE": N_("Internet irraggiungibile oltre il router (operatore o apparato a monte)"),
+    "DNS_FAILURE_LOCAL": N_("Il DNS locale non risponde (internet funziona)"),
+    "DNS_FAILURE_UPSTREAM": N_("Nessun server DNS risponde"),
+    "PACKET_LOSS": N_("Perdita di pacchetti verso internet"),
+    "HIGH_LATENCY": N_("Latenza alta verso internet"),
+    "IP_RENEWAL_CYCLE": N_("Riconnessione per rinnovo dell'IP pubblico (routine, non un guasto)"),
+    "CELLULAR_3G_FALLBACK": N_("Il modem mobile è ripiegato su 3G/2G (latenza o perdite da copertura)"),
+    "PING_ARTIFACT": N_("Artefatto di misura, non un guasto (solo nello storico importato)"),
 }
+
+def cause_label(cause):
+    return _(CAUSE_LABELS[cause]) if cause in CAUSE_LABELS else cause
+
 
 # Most fundamental first. When one continuous problem passes through several causes (link down,
 # then WAN renegotiating, then the fresh IP settling), the incident's cause is the highest one
@@ -157,11 +163,11 @@ def signal_note(before, after):
             findings.append(f"{name} {b:.0f}->{a:.0f}dBm")
     bt, at = before.get("cell.rat_raw"), after.get("cell.rat_raw")
     if bt and at and bt != at:
-        findings.append(f"modalità rete {bt}->{at}")
+        findings.append(_("modalità rete {a}->{b}", a=bt, b=at))
     if findings:
-        return "possibile causa radio (cambio cella/handover): " + ", ".join(findings)
+        return _("possibile causa radio (cambio cella/handover): {v}", v=", ".join(findings))
     if bt and at:
-        return "segnale stabile prima e dopo: probabile rinnovo di sessione lato operatore, non un problema di copertura"
+        return _("segnale stabile prima e dopo: probabile rinnovo di sessione lato operatore, non un problema di copertura")
     return None
 
 
@@ -189,5 +195,5 @@ def close_cause(phases, ip_before, ip_after, cell_before=None, cell_after=None, 
         rat = legacy_rat(cell_during)
         if rat:
             cause = "CELLULAR_3G_FALLBACK"
-            note = f"modem su rete {rat} (3G/2G) invece di 4G/5G: copertura, non un guasto locale"
+            note = _("modem su rete {v} (3G/2G) invece di 4G/5G: copertura, non un guasto locale", v=rat)
     return cause, note

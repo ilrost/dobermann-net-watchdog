@@ -1,6 +1,7 @@
 """One admin password for the panel (PBKDF2, stdlib) and file-backed sessions, so restarting the panel
-does not log anyone out. Lost the password? Delete admin.json in
-the configuration directory and choose a new one from the browser."""
+does not log anyone out. Lost the password? Run `dobermann reset-password` on the machine (or delete
+admin.json in the configuration directory and choose a new one from the browser, with the code that
+command prints)."""
 import hashlib
 import hmac
 import json
@@ -58,6 +59,54 @@ def verify_password(password):
     return bool(data.get("hash")) and hmac.compare_digest(_hash(password, data["salt"]), data["hash"])
 
 
+# --- the one-time setup code ----------------------------------------------------------------------
+# When the installer did not set the password, it leaves a short code in the configuration directory
+# and prints it: the first visit must give it to choose the password, so that someone else on the
+# home network who opens the panel first cannot choose it instead.
+
+SETUP_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # no 0/O, 1/I: it is read off a screen
+
+
+def _code_file():
+    return os.path.join(config.config_dir(), "setup-code")
+
+
+def _normal_code(code):
+    return "".join(c for c in (code or "").upper() if c.isalnum())
+
+
+def new_setup_code():
+    """Writes a fresh code (0600) and returns it as XXXX-XXXX."""
+    raw = "".join(secrets.choice(SETUP_CODE_ALPHABET) for _i in range(8))
+    path = _code_file()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd = os.open(path + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(raw + "\n")
+    os.replace(path + ".tmp", path)
+    return f"{raw[:4]}-{raw[4:]}"
+
+
+def setup_code_required():
+    return not is_configured() and os.path.exists(_code_file())
+
+
+def check_setup_code(code):
+    try:
+        with open(_code_file()) as f:
+            want = _normal_code(f.read())
+    except OSError:
+        return False
+    return bool(want) and hmac.compare_digest(_normal_code(code), want)
+
+
+def clear_setup_code():
+    try:
+        os.unlink(_code_file())
+    except FileNotFoundError:
+        pass
+
+
 def create_session():
     data = _load()
     now = time.time()
@@ -74,6 +123,18 @@ def check_session(token):
         return False
     exp = _load().get("sessions", {}).get(token)
     return bool(exp and exp > time.time())
+
+
+def session_started(token):
+    """When this session was opened (epoch), or None."""
+    exp = _load().get("sessions", {}).get(token) if token else None
+    return exp - SESSION_TTL if exp else None
+
+
+def destroy_all_sessions():
+    data = _load()
+    data["sessions"] = {}
+    _save(data)
 
 
 def destroy_session(token):

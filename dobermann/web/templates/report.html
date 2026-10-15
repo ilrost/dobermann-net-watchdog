@@ -1,4 +1,4 @@
-<title>dobermann — Storico</title>
+<title>dobermann — [[Storico]]</title>
 <style>
 :root{
   color-scheme: light;
@@ -186,14 +186,13 @@ tr.incident-row:hover td{ background: color-mix(in srgb, var(--s1) 8%, transpare
 
 <div class="viz-root">
   <div class="head-row">
-    <h1><img src="/logo.svg" alt="" class="logo-dog">dobermann — Storico</h1>
+    <h1><img src="/logo.svg" alt="" class="logo-dog">dobermann — [[Storico]]</h1>
+    <!--__TOOLBAR__-->
   </div>
   <p class="subtitle" id="subtitle">—</p>
   <div class="nav">
-    <a href="/watchdash">Oggi</a>
-    <a href="/report">Storico</a>
-    <a href="/setup">Impostazioni</a>
-    <a href="/logout">Esci</a>
+    <a href="/watchdash">[[Oggi]]</a>
+    <a href="/report">[[Storico]]</a>
   </div>
   <div class="nav" id="periodNav"></div>
   <div class="nav" id="dayNav"></div>
@@ -202,45 +201,45 @@ tr.incident-row:hover td{ background: color-mix(in srgb, var(--s1) 8%, transpare
   <div class="tiles" id="tiles"></div>
 
   <div class="card">
-    <h2 id="hourlyTitle">Incidenti</h2>
+    <h2 id="hourlyTitle">[[Incidenti]]</h2>
     <p class="card-sub" id="hourlySub">—</p>
     <div class="chart-wrap" id="chartHourly"></div>
   </div>
 
   <div class="card">
-    <h2>Cause degli incidenti</h2>
-    <p class="card-sub">Numero di episodi per causa rilevata</p>
+    <h2>[[Cause degli incidenti]]</h2>
+    <p class="card-sub">[[Numero di episodi per causa rilevata]]</p>
     <div class="chart-wrap" id="chartCause"></div>
   </div>
 
   <div class="card">
-    <h2>Andamento nel tempo</h2>
-    <p class="card-sub">Incidenti e cambi IP sovrapposti sull'asse del tempo. Le serie attive sono sullo stesso grafico, ciascuna scalata sul proprio picco (unità diverse, non un asse condiviso) — valori esatti nel tooltip e nella legenda.</p>
+    <h2>[[Andamento nel tempo]]</h2>
+    <p class="card-sub">[[Incidenti e cambi IP sovrapposti sull'asse del tempo. Le serie attive sono sullo stesso grafico, ciascuna scalata sul proprio picco (unità diverse, non un asse condiviso): i valori esatti sono nel tooltip e nella legenda.]]</p>
     <div class="chart-controls">
       <div class="segmented" id="modeSelect">
-        <button type="button" data-mode="bw" class="active">Banda</button>
-        <button type="button" data-mode="rtt">Latenza</button>
-        <button type="button" data-mode="loss">Perdita pacchetti</button>
-        <button type="button" data-mode="signal">Segnale cellulare</button>
+        <button type="button" data-mode="bw" class="active">[[Banda]]</button>
+        <button type="button" data-mode="rtt">[[Latenza]]</button>
+        <button type="button" data-mode="loss">[[Perdita pacchetti]]</button>
+        <button type="button" data-mode="signal">[[Segnale cellulare]]</button>
       </div>
-      <label class="check"><input type="checkbox" id="toggleIncidents" checked> Incidenti</label>
-      <label class="check"><input type="checkbox" id="toggleIpChanges" checked> Cambi IP</label>
+      <label class="check"><input type="checkbox" id="toggleIncidents" checked> [[Incidenti]]</label>
+      <label class="check"><input type="checkbox" id="toggleIpChanges" checked> [[Cambi IP]]</label>
       <span id="fineDetailBadge" class="zoom-hint" style="margin:0"></span>
     </div>
     <div class="legend" id="timelineLegend"></div>
-    <p class="zoom-hint">Trascina sul grafico per ingrandire un intervallo; clic su una riga del registro sotto per saltare direttamente al dettaglio di quell'incidente.</p>
+    <p class="zoom-hint">[[Trascina sul grafico per ingrandire un intervallo; clic su una riga del registro sotto per saltare direttamente al dettaglio di quell'incidente.]]</p>
     <div class="chart-wrap" id="chartTimeline"></div>
   </div>
 
   <div class="card">
-    <h2>Registro incidenti</h2>
-    <p class="card-sub">Ogni riga è un episodio continuo classificato con causa probabile</p>
+    <h2>[[Registro incidenti]]</h2>
+    <p class="card-sub">[[Ogni riga è un episodio continuo classificato con causa probabile]]</p>
     <div id="incidentTable"></div>
   </div>
 
   <div class="card">
-    <h2>Cambi di IP pubblico</h2>
-    <p class="card-sub">Ogni cambio interrompe per alcuni minuti la raggiungibilità dall'esterno se non aggiorni un DDNS</p>
+    <h2>[[Cambi di IP pubblico]]</h2>
+    <p class="card-sub">[[Ogni cambio interrompe per alcuni minuti la raggiungibilità dall'esterno se non aggiorni un DDNS]]</p>
     <div id="ipTable"></div>
   </div>
 
@@ -248,46 +247,49 @@ tr.incident-row:hover td{ background: color-mix(in srgb, var(--s1) 8%, transpare
 </div>
 
 <script>
+const T = /*__T__*/;
+function _t(s, v){ let r = (T[s] ?? s); if (v) for (const k in v) r = r.split('{' + k + '}').join(v[k]); return r; }
+const LOCALE = document.documentElement.lang || 'en';
 const DATA = /*__DATA__*/;
 function escHtml(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 if (!DATA.has_cellular) document.querySelectorAll('[data-mode="signal"]').forEach(b => b.remove());
 function sourceText(){
   const s = DATA.source || {};
-  const dns = [s.dns_local && ('locale ' + s.dns_local), s.dns_external && ('esterno ' + s.dns_external)].filter(Boolean).join(', ');
-  return `Catena: ${escHtml(s.chain || 'non configurata')}.` + (s.link ? ` Linea: ${escHtml(s.link)}.` : '') + ` Ancore: ${escHtml((s.anchors || []).join(' / '))}` +
-         (dns ? `. DNS: ${escHtml(dns)}` : '') + '.';
+  const dns = [s.dns_local && (_t('locale') + ' ' + s.dns_local), s.dns_external && (_t('esterno') + ' ' + s.dns_external)].filter(Boolean).join(', ');
+  return _t('Catena: {v}.', {v: escHtml(s.chain || _t('non configurata'))}) + (s.link ? ' ' + _t('Linea: {v}.', {v: escHtml(s.link)}) : '') +
+         ' ' + _t('Ancore: {v}', {v: escHtml((s.anchors || []).join(' / '))}) + (dns ? '. DNS: ' + escHtml(dns) : '') + '.';
 }
 
 
 const CAUSE_META = {
-  GATEWAY_UNRESPONSIVE: { label: "Il router non risponde (LAN)", color: "var(--s1)", hex_l: "#2a78d6", hex_d: "#3987e5" },
-  CELLULAR_NO_SERVICE:  { label: "Modem mobile senza servizio dall'operatore", color: "#8b1e3f", hex_l: "#8b1e3f", hex_d: "#c2456b" },
-  LOCAL_LINK_DOWN:      { label: "Collegamento WAN del router interrotto", color: "#9c5b1f", hex_l: "#9c5b1f", hex_d: "#c47a34" },
-  WAN_DISCONNECTED:     { label: "Il router segnala la WAN disconnessa", color: "var(--s2)", hex_l: "#eb6834", hex_d: "#d95926" },
-  UPSTREAM_OUTAGE:      { label: "Internet irraggiungibile oltre il router", color: "var(--s3)", hex_l: "#1baf7a", hex_d: "#199e70" },
-  IP_CHANGE_DROP:       { label: "Drop per cambio IP", color: "var(--s4)", hex_l: "#eda100", hex_d: "#c98500" },
-  DNS_FAILURE_LOCAL:    { label: "DNS locale non risponde", color: "var(--s5)", hex_l: "#e87ba4", hex_d: "#d55181" },
-  DNS_FAILURE_UPSTREAM: { label: "DNS non risponde (anche esterno)", color: "var(--s6)", hex_l: "#008300", hex_d: "#008300" },
-  PACKET_LOSS:          { label: "Perdita pacchetti", color: "var(--s7)", hex_l: "#4a3aa7", hex_d: "#9085e9" },
-  HIGH_LATENCY:         { label: "Latenza elevata", color: "var(--s8)", hex_l: "#e34948", hex_d: "#e66767" },
-  IP_RENEWAL_CYCLE:     { label: "Riconnessione per rinnovo IP (routine, non un guasto)", color: "var(--good)", hex_l: "#0ca30c", hex_d: "#0ca30c" },
-  CELLULAR_3G_FALLBACK: { label: "Modem mobile ripiegato su 3G/2G", color: "#7a7a1f", hex_l: "#7a7a1f", hex_d: "#a6a63a" },
-  PING_ARTIFACT:        { label: "Artefatto di misura (storico importato)", color: "var(--text-muted)", hex_l: "#898781", hex_d: "#898781" },
+  GATEWAY_UNRESPONSIVE: { label: _t("Il router non risponde (LAN)"), color: "var(--s1)", hex_l: "#2a78d6", hex_d: "#3987e5" },
+  CELLULAR_NO_SERVICE:  { label: _t("Modem mobile senza servizio dall'operatore"), color: "#8b1e3f", hex_l: "#8b1e3f", hex_d: "#c2456b" },
+  LOCAL_LINK_DOWN:      { label: _t("Collegamento WAN del router interrotto"), color: "#9c5b1f", hex_l: "#9c5b1f", hex_d: "#c47a34" },
+  WAN_DISCONNECTED:     { label: _t("Il router segnala la WAN disconnessa"), color: "var(--s2)", hex_l: "#eb6834", hex_d: "#d95926" },
+  UPSTREAM_OUTAGE:      { label: _t("Internet irraggiungibile oltre il router"), color: "var(--s3)", hex_l: "#1baf7a", hex_d: "#199e70" },
+  IP_CHANGE_DROP:       { label: _t("Drop per cambio IP"), color: "var(--s4)", hex_l: "#eda100", hex_d: "#c98500" },
+  DNS_FAILURE_LOCAL:    { label: _t("DNS locale non risponde"), color: "var(--s5)", hex_l: "#e87ba4", hex_d: "#d55181" },
+  DNS_FAILURE_UPSTREAM: { label: _t("DNS non risponde (anche esterno)"), color: "var(--s6)", hex_l: "#008300", hex_d: "#008300" },
+  PACKET_LOSS:          { label: _t("Perdita pacchetti"), color: "var(--s7)", hex_l: "#4a3aa7", hex_d: "#9085e9" },
+  HIGH_LATENCY:         { label: _t("Latenza elevata"), color: "var(--s8)", hex_l: "#e34948", hex_d: "#e66767" },
+  IP_RENEWAL_CYCLE:     { label: _t("Riconnessione per rinnovo IP (routine, non un guasto)"), color: "var(--good)", hex_l: "#0ca30c", hex_d: "#0ca30c" },
+  CELLULAR_3G_FALLBACK: { label: _t("Modem mobile ripiegato su 3G/2G"), color: "#7a7a1f", hex_l: "#7a7a1f", hex_d: "#a6a63a" },
+  PING_ARTIFACT:        { label: _t("Artefatto di misura (storico importato)"), color: "var(--text-muted)", hex_l: "#898781", hex_d: "#898781" },
 };
 
 function fmtDate(ts){
   const d = new Date(ts*1000);
   // month spelled out (abbreviated) rather than numeric -- "4 ago" can't be
   // misread as day/month-swapped the way "04/08" can
-  return d.toLocaleString('it-IT', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+  return d.toLocaleString(LOCALE, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
 }
 function fmtDayLabel(dayStr){
   const [y,m,d] = dayStr.split('-').map(Number);
-  return new Date(y, m-1, d).toLocaleString('it-IT', { day:'numeric', month:'short', year:'numeric' });
+  return new Date(y, m-1, d).toLocaleString(LOCALE, { day:'numeric', month:'short', year:'numeric' });
 }
 function fmtMonthLabel(monthStr){
   const [y,m] = monthStr.split('-').map(Number);
-  return new Date(y, m-1, 1).toLocaleString('it-IT', { month:'short', year:'numeric' });
+  return new Date(y, m-1, 1).toLocaleString(LOCALE, { month:'short', year:'numeric' });
 }
 function fmtDur(s){
   s = Math.round(s);
@@ -305,10 +307,10 @@ function fmtBps(v){
 }
 
 function thInfo(label, desc){
-  return `<th>${label} <span class="info-icon" title="${desc}">ⓘ</span></th>`;
+  return `<th>${escHtml(label)} <span class="info-icon" title="${escHtml(desc)}">ⓘ</span></th>`;
 }
 
-const PERIOD_LABELS = { day: "Giorno", week: "Settimana", month: "Mese", year: "Anno" };
+const PERIOD_LABELS = { day: _t("Giorno"), week: _t("Settimana"), month: _t("Mese"), year: _t("Anno") };
 
 function toDateStr(ts){
   const d = new Date(ts*1000);
@@ -329,36 +331,37 @@ function renderDayNav(){
   const prevHref = DATA.prev_day ? `/report?period=day&date=${DATA.prev_day}` : null;
   const nextHref = DATA.next_day ? `/report?period=day&date=${DATA.next_day}` : null;
   el.innerHTML =
-    `<a href="${prevHref || '#'}" class="${prevHref?'':'disabled'}">← precedente</a>` +
+    `<a href="${prevHref || '#'}" class="${prevHref?'':'disabled'}">← ${_t('precedente')}</a>` +
     `<span class="day-label">${fmtDayLabel(DATA.day)}</span>` +
-    `<a href="${nextHref || '#'}" class="${nextHref?'':'disabled'}">successivo →</a>`;
+    `<a href="${nextHref || '#'}" class="${nextHref?'':'disabled'}">${_t('successivo')} →</a>`;
 }
 
 function renderExportNav(){
   const el = document.getElementById('exportNav');
   const from = toDateStr(DATA.range_start), to = toDateStr(DATA.range_end - 1);
   el.innerHTML =
-    `<a href="/export?table=samples&from=${from}&to=${to}">Esporta CSV (grezzo)</a>` +
-    `<a href="/export?table=hourly&from=${from}&to=${to}">Esporta CSV (orario)</a>`;
+    `<a href="/export?table=samples&from=${from}&to=${to}">${_t('Esporta CSV (grezzo)')}</a>` +
+    `<a href="/export?table=hourly&from=${from}&to=${to}">${_t('Esporta CSV (orario)')}</a>`;
 }
 
 function renderHeader(){
   const start = DATA.range_start, end = DATA.range_end;
-  const periodLabel = PERIOD_LABELS[DATA.period] || 'Storico';
+  const periodLabel = PERIOD_LABELS[DATA.period] || _t('Storico');
   document.getElementById('subtitle').innerHTML =
     `${periodLabel}: <b>${fmtDate(start)}</b> → <b>${fmtDate(end)}</b>` +
-    ` · generato <b>${fmtDate(DATA.generated_at)}</b> · ${DATA.total_samples} campioni` +
-    (DATA.raw_detail_available ? ` (dettaglio ${DATA.current_interval_s}s dove disponibile, il resto da aggregati orari)` : ` (da aggregati orari — oltre i ${DATA.raw_retention_days}gg di dettaglio grezzo)`) +
-    ` · <a href="/watchdash">torna al live →</a>`;
+    ' · ' + _t('generato {v}', {v: `<b>${fmtDate(DATA.generated_at)}</b>`}) + ' · ' + _t('{n} campioni', {n: DATA.total_samples}) + ' ' +
+    (DATA.raw_detail_available ? _t('(dettaglio ogni {i}s dove disponibile, il resto da riepiloghi orari)', {i: DATA.current_interval_s})
+                               : _t('(da riepiloghi orari: oltre i {n} giorni di dettaglio grezzo)', {n: DATA.raw_retention_days})) +
+    ` · <a href="/watchdash">${_t('torna a oggi →')}</a>`;
 }
 
 function renderTiles(){
   const t = document.getElementById('tiles');
   const items = [
-    { label: "Uptime periodo", value: DATA.uptime_pct != null ? DATA.uptime_pct.toFixed(2)+"%" : "—", hint: DATA.total_samples+" campioni" },
-    { label: "Incidenti totali", value: DATA.real_incidents_count, hint: Object.keys(DATA.by_cause).length+" cause distinte" + (DATA.incidents.length > DATA.real_incidents_count ? ` (+${DATA.incidents.length - DATA.real_incidents_count} falsi positivi)` : ''), warn: DATA.real_incidents_count>0 },
-    { label: "IP WAN (fine periodo)", value: escHtml(DATA.current_wan_ip || "—"), small:true, hint: DATA.ip_changes.length+" cambi nel periodo" },
-    { label: "Stato WAN del router", value: escHtml(DATA.current_wan_status || "—"), small:true },
+    { label: _t("Disponibilità nel periodo"), value: DATA.uptime_pct != null ? DATA.uptime_pct.toFixed(2)+"%" : "—", hint: _t('{n} campioni', {n: DATA.total_samples}) },
+    { label: _t("Incidenti totali"), value: DATA.real_incidents_count, hint: _t('{n} cause distinte', {n: Object.keys(DATA.by_cause).length}) + (DATA.incidents.length > DATA.real_incidents_count ? ' ' + _t('(+{n} falsi positivi)', {n: DATA.incidents.length - DATA.real_incidents_count}) : ''), warn: DATA.real_incidents_count>0 },
+    { label: _t("IP WAN (fine periodo)"), value: escHtml(DATA.current_wan_ip || "—"), small:true, hint: _t('{n} cambi nel periodo', {n: DATA.ip_changes.length}) },
+    { label: _t("Stato WAN del router"), value: escHtml(DATA.current_wan_status || "—"), small:true },
   ];
   t.innerHTML = items.map(i => `
     <div class="tile ${i.warn?'warn':''}">
@@ -384,7 +387,7 @@ function makeTooltip(container){
 
 function barChartByBucket(container, data, opts){
   if (!data.some(d => d.count > 0)) {
-    container.innerHTML = '<div class="empty">Nessun incidente registrato in questo periodo — buon segno, oppure serve più tempo di raccolta.</div>';
+    container.innerHTML = '<div class="empty">' + _t('Nessun incidente registrato in questo periodo: buon segno, oppure serve più tempo di raccolta.') + '</div>';
     return;
   }
   const W = 1020, H = 220, padL = 34, padR = 10, padT = 10, padB = 26;
@@ -415,15 +418,15 @@ function barChartByBucket(container, data, opts){
     svg.appendChild(rect);
     const tipHtml = (forTouch) => {
       const events = opts.getEvents(d);
-      let html = `<b>${opts.getLabel(d)}</b><br>${d.count} incidenti · ${fmtDur(d.total_seconds)} totali`;
+      let html = `<b>${opts.getLabel(d)}</b><br>` + _t('{n} incidenti · {d} in tutto', {n: d.count, d: fmtDur(d.total_seconds)});
       if (events.length) {
         html += '<br><br>' + events.slice(0, 6).map(ev => {
           const meta = CAUSE_META[ev.cause] || { label: ev.cause };
           return `${fmtDate(ev.start_ts)} — ${meta.label} (${fmtDur(ev.duration_s)})`;
         }).join('<br>');
-        if (events.length > 6) html += `<br>+${events.length - 6} altri`;
+        if (events.length > 6) html += '<br>' + _t('+{n} altri', {n: events.length - 6});
       }
-      if (clickable) html += forTouch ? '<br><br><i>tocca di nuovo per il dettaglio</i>' : '<br><br><i>clic per vedere il dettaglio</i>';
+      if (clickable) html += '<br><br><i>' + (forTouch ? _t('tocca di nuovo per il dettaglio') : _t('clic per vedere il dettaglio')) + '</i>';
       return html;
     };
     const placeTip = (clientX, clientY) => {
@@ -479,22 +482,22 @@ function barChartByBucket(container, data, opts){
 // week/month bucket by calendar day, year by calendar month.
 function pickIncidentBucket(){
   if (DATA.period === 'day') {
-    return { data: DATA.by_hour, title: 'Incidenti per ora',
-      sub: 'Conteggio incidenti per ora di questo giorno; passa il mouse per il dettaglio di ogni evento',
+    return { data: DATA.by_hour, title: _t('Incidenti per ora'),
+      sub: _t('Conteggio incidenti per ora di questo giorno; passa il mouse per il dettaglio di ogni evento'),
       getLabel: d => `${String(d.hour).padStart(2,'0')}:00–${String(d.hour).padStart(2,'0')}:59`,
       getTick: d => d.hour,
       getEvents: d => DATA.incidents.filter(i => new Date(i.start_ts*1000).getHours() === d.hour) };
   }
   if (DATA.period === 'year') {
-    return { data: DATA.by_month, title: 'Incidenti per mese',
-      sub: 'Conteggio incidenti per mese; passa il mouse per il dettaglio, clic per zoomare',
+    return { data: DATA.by_month, title: _t('Incidenti per mese'),
+      sub: _t('Conteggio incidenti per mese; passa il mouse per il dettaglio, clic per ingrandire'),
       getLabel: d => fmtMonthLabel(d.month),
       getTick: d => fmtMonthLabel(d.month).split(' ')[0],
       getEvents: d => { const [s,e] = monthRange(d.month); return DATA.incidents.filter(i => i.start_ts >= s && i.start_ts < e); },
       getRange: d => monthRange(d.month) };
   }
-  return { data: DATA.by_day, title: 'Incidenti per giorno',
-    sub: 'Conteggio incidenti per giorno di calendario; passa il mouse per il dettaglio, clic per zoomare',
+  return { data: DATA.by_day, title: _t('Incidenti per giorno'),
+    sub: _t('Conteggio incidenti per giorno di calendario; passa il mouse per il dettaglio, clic per ingrandire'),
     getLabel: d => fmtDayLabel(d.day),
     getTick: d => Number(d.day.slice(8,10)),
     getEvents: d => { const [s,e] = dayRange(d.day); return DATA.incidents.filter(i => i.start_ts >= s && i.start_ts < e); },
@@ -516,7 +519,7 @@ function monthRange(monthStr){
 function barChartCause(container, byCause){
   const keys = Object.keys(byCause);
   if (!keys.length) {
-    container.innerHTML = '<div class="empty">Nessun incidente classificato in questo periodo.</div>';
+    container.innerHTML = '<div class="empty">' + _t('Nessun incidente classificato in questo periodo.') + '</div>';
     return;
   }
   const order = Object.keys(CAUSE_META).filter(k => keys.includes(k));
@@ -547,7 +550,7 @@ function barChartCause(container, byCause){
     };
     rect.addEventListener('mouseenter', () => {
       tip.style.opacity = 1;
-      tip.innerHTML = `<b>${meta.label}</b><br>${val} episodi · ${fmtDur(byCause[k].total_seconds)} totali`;
+      tip.innerHTML = `<b>${meta.label}</b><br>` + _t('{n} episodi · {d} in tutto', {n: val, d: fmtDur(byCause[k].total_seconds)});
     });
     rect.addEventListener('mousemove', e => placeTip(e.clientX, e.clientY));
     rect.addEventListener('mouseleave', () => tip.style.opacity = 0);
@@ -555,7 +558,7 @@ function barChartCause(container, byCause){
     rect.addEventListener('touchstart', e => {
       e.preventDefault();
       tip.style.opacity = 1;
-      tip.innerHTML = `<b>${meta.label}</b><br>${val} episodi · ${fmtDur(byCause[k].total_seconds)} totali`;
+      tip.innerHTML = `<b>${meta.label}</b><br>` + _t('{n} episodi · {d} in tutto', {n: val, d: fmtDur(byCause[k].total_seconds)});
       placeTip(e.touches[0].clientX, e.touches[0].clientY);
     }, { passive: false });
   });
@@ -598,7 +601,7 @@ function lineChart(container, series, opts){
   const fullTl = opts.timelineData || DATA.timeline;
   const range = opts.xRange;
   if (!fullTl.length) {
-    container.innerHTML = '<div class="empty">Dati insufficienti per il grafico.</div>';
+    container.innerHTML = '<div class="empty">' + _t('Dati insufficienti per il grafico.') + '</div>';
     if (range) addResetZoomButton(container, opts);
     return;
   }
@@ -610,7 +613,7 @@ function lineChart(container, series, opts){
   const xMax = range ? range[1] : fullMax;
   const tl = fullTl.filter(d => d.ts >= xMin && d.ts <= xMax);
   if (!tl.length) {
-    container.innerHTML = '<div class="empty">Nessun dato in questo intervallo.</div>';
+    container.innerHTML = '<div class="empty">' + _t('Nessun dato in questo intervallo.') + '</div>';
     if (range) addResetZoomButton(container, opts);
     return;
   }
@@ -665,8 +668,8 @@ function lineChart(container, series, opts){
     const t = svgEl('text', { x, y: H-6, 'text-anchor':'middle' });
     const dt = new Date(ts*1000);
     t.textContent = showDate
-      ? dt.toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit'})
-      : dt.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
+      ? dt.toLocaleDateString(LOCALE, {day:'2-digit', month:'2-digit'})
+      : dt.toLocaleTimeString(LOCALE, {hour:'2-digit', minute:'2-digit'});
     svg.appendChild(t);
   });
 
@@ -739,7 +742,7 @@ function lineChart(container, series, opts){
     tip.style.left = (clientX - rc.left + 12) + 'px';
     tip.style.top = (clientY - rc.top - 40) + 'px';
 
-    let html = `<b>${new Date(d.ts*1000).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</b><br>` +
+    let html = `<b>${new Date(d.ts*1000).toLocaleString(LOCALE,{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</b><br>` +
       series.map(s => `<span style="color:${s.color}">⬤</span> ${s.label}: ${s.fmt ? s.fmt(d[s.key]) : (d[s.key]==null?'—':d[s.key])}`).join('<br>');
 
     if (opts.showIncidents) {
@@ -753,7 +756,7 @@ function lineChart(container, series, opts){
       const pxPerSec = plotW / xSpan;
       const nearIp = DATA.ip_changes.find(c => Math.abs(c.ts - hoverTs) * pxPerSec < 6);
       if (nearIp) {
-        html += `<br><span style="color:var(--s4)">⬤ cambio IP: ${escHtml(nearIp.ip_before)} → ${escHtml(nearIp.ip_after)}</span>`;
+        html += `<br><span style="color:var(--s4)">⬤ ${_t('cambio IP')}: ${escHtml(nearIp.ip_before)} → ${escHtml(nearIp.ip_after)}</span>`;
       }
     }
     tip.innerHTML = html;
@@ -810,7 +813,7 @@ function lineChart(container, series, opts){
 
 function addResetZoomButton(container, opts){
   const btn = document.createElement('button');
-  btn.textContent = '⟲ Reset zoom';
+  btn.textContent = '⟲ ' + _t('Annulla zoom');
   btn.className = 'zoom-reset-btn';
   btn.addEventListener('click', () => { if (opts.onResetZoom) opts.onResetZoom(); });
   container.appendChild(btn);
@@ -818,7 +821,7 @@ function addResetZoomButton(container, opts){
 
 function renderIncidentTable(){
   const el = document.getElementById('incidentTable');
-  if (!DATA.incidents.length) { el.innerHTML = '<div class="empty">Nessun incidente in questo periodo.</div>'; return; }
+  if (!DATA.incidents.length) { el.innerHTML = '<div class="empty">' + _t('Nessun incidente in questo periodo.') + '</div>'; return; }
   const rows = DATA.incidents.slice().reverse().map(i => {
     const meta = CAUSE_META[i.cause] || { label: escHtml(i.cause), color: 'var(--text-muted)' };
     // a merged incident that passed through several causes (e.g. a local
@@ -828,7 +831,7 @@ function renderIncidentTable(){
     const phaseSeq = (i.phases && i.phases.length > 1)
       ? `<div class="zoom-hint" style="margin:2px 0 0">${i.phases.map(p => (CAUSE_META[p.cause] || {label:escHtml(p.cause)}).label).join(' → ')}</div>`
       : '';
-    return `<tr class="incident-row" onclick="zoomToIncident(${i.start_ts})" title="Clic per vedere il dettaglio sul grafico">
+    return `<tr class="incident-row" onclick="zoomToIncident(${i.start_ts})" title="${escHtml(_t('Clic per vedere il dettaglio sul grafico'))}">
       <td class="cause"><span class="dot" style="background:${meta.color}"></span>${meta.label}${phaseSeq}</td>
       <td>${fmtDate(i.start_ts)}</td>
       <td>${fmtDur(i.duration_s)}</td>
@@ -839,23 +842,23 @@ function renderIncidentTable(){
     </tr>`;
   }).join('');
   el.innerHTML = `<table><thead><tr>
-    ${thInfo('Causa', 'Il tipo di problema, classificato in automatico da cosa risultava raggiungibile in quel momento (router, ancore esterne, DNS, stato riportato dagli apparati della catena)')}
-    ${thInfo('Inizio', 'Data e ora del primo campione in cui è stato rilevato il problema')}
-    ${thInfo('Durata', "Per quanto tempo è durato, in multipli dell'intervallo di campionamento usato in quel momento — non è mai più precisa di quello")}
-    ${thInfo('Loss max', "La percentuale massima di pacchetti persi verso le ancore esterne durante l'incidente")}
-    ${thInfo('RTT max', "La latenza massima (in millisecondi) misurata verso le ancore esterne durante l'incidente")}
-    ${thInfo('Cambio IP', "Se l'IP WAN del router è cambiato durante l'incidente, IP precedente → IP nuovo")}
-    ${thInfo('Banda picco', "Il valore più alto tra banda in download e upload (byte/s) registrato durante l'incidente — se è alto, un trasferimento pesante potrebbe aver contribuito")}
+    ${thInfo(_t('Causa'), _t('Il tipo di problema, classificato in automatico da cosa risultava raggiungibile in quel momento (router, ancore esterne, DNS, stato riportato dagli apparati della catena)'))}
+    ${thInfo(_t('Inizio'), _t('Data e ora del primo campione in cui è stato rilevato il problema'))}
+    ${thInfo(_t('Durata'), _t("Per quanto tempo è durato, in multipli dell'intervallo di campionamento usato in quel momento: non è mai più precisa di quello"))}
+    ${thInfo(_t('Perdita max'), _t("La percentuale massima di pacchetti persi verso le ancore esterne durante l'incidente"))}
+    ${thInfo(_t('Latenza max'), _t("La latenza massima (in millisecondi) misurata verso le ancore esterne durante l'incidente"))}
+    ${thInfo(_t('Cambio IP'), _t("Se l'IP WAN del router è cambiato durante l'incidente, IP precedente → IP nuovo"))}
+    ${thInfo(_t('Banda picco'), _t("Il valore più alto tra banda in download e upload (byte/s) registrato durante l'incidente: se è alto, un trasferimento pesante potrebbe aver contribuito"))}
   </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderIpTable(){
   const el = document.getElementById('ipTable');
-  if (!DATA.ip_changes.length) { el.innerHTML = '<div class="empty">Nessun cambio di IP pubblico in questo periodo.</div>'; return; }
+  if (!DATA.ip_changes.length) { el.innerHTML = '<div class="empty">' + _t('Nessun cambio di IP pubblico in questo periodo.') + '</div>'; return; }
   const rows = DATA.ip_changes.slice().reverse().map(c => `<tr>
     <td>${fmtDate(c.ts)}</td><td>${escHtml(c.ip_before)}</td><td>→</td><td>${escHtml(c.ip_after)}</td>
   </tr>`).join('');
-  el.innerHTML = `<table><thead><tr><th>Quando</th><th>IP precedente</th><th></th><th>IP nuovo</th></tr></thead><tbody>${rows}</tbody></table>`;
+  el.innerHTML = `<table><thead><tr><th>${_t('Quando')}</th><th>${_t('IP precedente')}</th><th></th><th>${_t('IP nuovo')}</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 // touch has no hover-out event, so a tap on a chart's tooltip can otherwise
@@ -883,10 +886,10 @@ const TIMELINE_MODES = {
     { key:'send_bps', label:'Upload', color:'var(--s2)', fmt: fmtBps },
   ] },
   rtt: { series: [
-    { key:'rtt_ms', label:'Latenza', color:'var(--rtt-yellow)', fmt: v => v==null?'—':v.toFixed(0)+' ms' },
+    { key:'rtt_ms', label:_t('Latenza'), color:'var(--rtt-yellow)', fmt: v => v==null?'—':v.toFixed(0)+' ms' },
   ] },
   loss: { series: [
-    { key:'loss_pct', label:'Perdita pacchetti', color:'var(--s8)', fmt: v => v==null?'—':v.toFixed(0)+'%', yMaxCap: 100 },
+    { key:'loss_pct', label:_t('Perdita pacchetti'), color:'var(--s8)', fmt: v => v==null?'—':v.toFixed(0)+'%', yMaxCap: 100 },
   ] },
   signal: { series: [
     { key:'lte_rsrp', label:'LTE RSRP', color:'var(--s3)', fmt: v => v==null?'—':v.toFixed(0)+' dBm',
@@ -897,7 +900,7 @@ const TIMELINE_MODES = {
 };
 function avgSummary(vals){
   const n = vals.filter(v => v != null);
-  return { word: 'media', value: n.length ? n.reduce((a,b) => a+b, 0)/n.length : null };
+  return { word: _t('media'), value: n.length ? n.reduce((a,b) => a+b, 0)/n.length : null };
 }
 // Zoom/modes/toggle state is mirrored into the URL (history.replaceState, no
 // navigation) so a reload -- e.g. after following a prev/next day link back
@@ -950,10 +953,10 @@ async function renderTimeline(){
   let fineData = null;
   const withinRetention = zoomRange && (DATA.generated_at - zoomRange[0]) <= RAW_RETENTION_DAYS * 86400;
   if (zoomRange && (zoomRange[1] - zoomRange[0]) <= RAW_DETAIL_THRESHOLD_SEC && withinRetention) {
-    badge.textContent = 'carico dettaglio al secondo…';
+    badge.textContent = _t('carico il dettaglio al secondo…');
     fineData = await fetchFineTimeline(zoomRange);
     if (myToken !== renderToken) return; // a newer render started meanwhile
-    badge.textContent = (fineData && fineData.length) ? `dettaglio grezzo: ${fineData.length} campioni (15s)` : '';
+    badge.textContent = (fineData && fineData.length) ? _t('dettaglio grezzo: {n} campioni', {n: fineData.length}) : '';
   } else {
     badge.textContent = '';
   }
@@ -967,7 +970,7 @@ async function renderTimeline(){
   const container = document.getElementById('chartTimeline');
   container.innerHTML = '';
   if (!series.length) {
-    container.innerHTML = '<div class="empty">Seleziona almeno una serie (Banda / Latenza / Perdita pacchetti).</div>';
+    container.innerHTML = '<div class="empty">' + _t('Seleziona almeno una serie (Banda / Latenza / Perdita pacchetti).') + '</div>';
   } else {
     // draw least-prominent first (bottom), most-prominent last (top)
     lineChart(container, [...series].reverse(), {
@@ -985,11 +988,11 @@ async function renderTimeline(){
     const vals = viewData.map(d => d[s.key]);
     const { word, value } = s.summarize
       ? s.summarize(vals)
-      : { word: 'picco', value: Math.max(0, ...vals.map(v => v || 0)) };
+      : { word: _t('picco'), value: Math.max(0, ...vals.map(v => v || 0)) };
     return `<span><span class="sw" style="background:${s.color};opacity:${s.opacity}"></span>${s.label} (${word} ${s.fmt(value)})</span>`;
   }).join('');
-  if (showIncidents) legendHtml += `<span><span class="sw" style="background:var(--critical);opacity:.4"></span>Incidenti</span>`;
-  if (showIpChanges) legendHtml += `<span><span class="sw" style="background:var(--s4)"></span>Cambio IP</span>`;
+  if (showIncidents) legendHtml += `<span><span class="sw" style="background:var(--critical);opacity:.4"></span>${_t('Incidenti')}</span>`;
+  if (showIpChanges) legendHtml += `<span><span class="sw" style="background:var(--s4)"></span>${_t('Cambio IP')}</span>`;
   document.getElementById('timelineLegend').innerHTML = legendHtml;
 
   syncUrlState();
@@ -1030,5 +1033,5 @@ renderIncidentTable();
 renderIpTable();
 
 document.getElementById('footer').innerHTML =
-  `${sourceText()} Questa è un'istantanea storica, generata al caricamento della pagina; per la giornata di oggi vai a <a href="/watchdash">Oggi</a>.`;
+  sourceText() + ' ' + _t("Questa è un'istantanea storica, generata al caricamento della pagina; per la giornata di oggi vai a {link}.", {link: `<a href="/watchdash">${_t('Oggi')}</a>`});
 </script>

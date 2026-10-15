@@ -13,6 +13,7 @@ import json
 import os
 
 DEFAULTS = {
+    "language": "en",              # the panel and the mails; see i18n.LANGUAGES
     "interval_s": 5,
     # public targets everyone can ping; at least two must fail before "internet is down"
     "anchors": [["cloudflare", "1.1.1.1"], ["google", "8.8.8.8"], ["quad9", "9.9.9.9"]],
