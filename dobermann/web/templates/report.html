@@ -1,0 +1,1034 @@
+<title>dobermann — Storico</title>
+<style>
+:root{
+  color-scheme: light;
+  --surface-1:      #fcfcfb;
+  --surface-2:      #f9f9f7;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --grid:           #e1e0d9;
+  --baseline:       #c3c2b7;
+  --border:         rgba(11,11,11,0.10);
+  --good:           #0ca30c;
+  --warning:        #fab219;
+  --serious:        #ec835a;
+  --critical:       #d03b3b;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
+  --seq-300: #6da7ec; --seq-500: #256abf;
+  --rtt-yellow: #a68a00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --surface-2:      #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --grid:           #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --good:           #0ca30c;
+    --warning:        #fab219;
+    --serious:        #ec835a;
+    --critical:       #d03b3b;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --seq-300: #5598e7; --seq-500: #256abf;
+    --rtt-yellow: #e8c93a;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --surface-1:      #1a1a19;
+  --surface-2:      #0d0d0d;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #898781;
+  --grid:           #2c2c2a;
+  --baseline:       #383835;
+  --border:         rgba(255,255,255,0.10);
+  --good:           #0ca30c;
+  --warning:        #fab219;
+  --serious:        #ec835a;
+  --critical:       #d03b3b;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --seq-300: #5598e7; --seq-500: #256abf;
+  --rtt-yellow: #e8c93a;
+}
+
+html{ background: var(--surface-2); }
+body{ background: var(--surface-2); margin: 0; }
+.viz-root{
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text-primary);
+  background: var(--surface-2);
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  box-sizing: border-box;
+}
+h1{ font-size: 22px; margin: 0 0 4px; display:flex; align-items:center; gap:8px; }
+.logo-dog{ height: 1em; width: auto; display:block; }
+.subtitle{ color: var(--text-secondary); font-size: 13px; margin: 0 0 24px; }
+.subtitle b{ color: var(--text-primary); }
+.callout{
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--critical);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+.callout b{ color: var(--text-primary); }
+.tiles{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.tile{
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.tile .label{ font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.tile .value{ font-size: 24px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.tile .value.small{ font-size: 15px; font-variant-numeric: tabular-nums; }
+.tile .hint{ font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.tile.warn .value{ color: var(--critical); }
+
+.card{
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 18px 8px;
+  margin-bottom: 20px;
+}
+.card h2{ font-size: 14px; margin: 0 0 2px; }
+.card .card-sub{ font-size: 12px; color: var(--text-muted); margin: 0 0 12px; }
+.legend{ display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--text-secondary); margin-bottom:10px; }
+.legend .sw{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+.chart-controls{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:10px; }
+.timeline-panel{ margin-bottom: 14px; }
+.timeline-panel:last-child{ margin-bottom: 0; }
+.timeline-panel .legend{ margin-bottom: 4px; }
+.segmented{ display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.segmented button{ font: inherit; font-size:12px; border:none; background:var(--surface-1); color:var(--text-secondary); padding:6px 12px; cursor:pointer; }
+.segmented button + button{ border-left:1px solid var(--border); }
+.segmented button.active{ background:var(--s1); color:#fff; }
+.check{ font-size:12px; color:var(--text-secondary); display:inline-flex; align-items:center; gap:5px; cursor:pointer; user-select:none; }
+.zoom-reset-btn{
+  position: absolute; top: 8px; right: 8px; z-index: 4;
+  font: inherit; font-size: 11px; color: var(--text-secondary);
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 7px;
+  padding: 5px 10px; cursor: pointer;
+}
+.zoom-reset-btn:hover{ color: var(--text-primary); border-color: var(--s1); }
+.zoom-hint{ font-size: 11px; color: var(--text-muted); margin: -6px 0 10px; }
+
+svg text{ fill: var(--text-muted); font-size: 10px; font-family: system-ui, sans-serif; }
+svg .axis-line{ stroke: var(--baseline); stroke-width: 1; }
+svg .grid-line{ stroke: var(--grid); stroke-width: 1; }
+.tooltip{
+  position: absolute;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-size: 11px;
+  color: var(--text-primary);
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity .1s;
+  z-index: 5;
+}
+.chart-wrap{ position: relative; }
+
+table{ width:100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+th{ text-align:left; color: var(--text-muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+.info-icon{ cursor: help; text-transform: none; letter-spacing: 0; opacity: .7; }
+.info-icon:hover{ opacity: 1; color: var(--s1); }
+td{ padding: 7px 8px; border-bottom: 1px solid var(--grid); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+td.cause{ color: var(--text-primary); }
+tr.incident-row{ cursor: pointer; }
+tr.incident-row:hover td{ background: color-mix(in srgb, var(--s1) 8%, transparent); }
+.dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:1px; }
+.empty{ color: var(--text-muted); font-size: 12px; padding: 20px 0; text-align:center; }
+.footer{ font-size: 11px; color: var(--text-muted); margin-top: 20px; line-height: 1.6; }
+.head-row{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.nav{ display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; align-items:center; }
+.nav a{ font-size:12px; color: var(--text-secondary); text-decoration:none; border:1px solid var(--border); border-radius:7px; padding:6px 12px; background: var(--surface-1); }
+.nav a:hover{ color: var(--text-primary); }
+.nav a.active{ background:var(--s1); color:#fff; border-color:var(--s1); }
+.nav a.disabled{ opacity:.4; pointer-events:none; }
+.day-label{ font-size:12px; color: var(--text-secondary); padding: 0 4px; }
+
+/* Mobile only (desktop untouched): wide tables get their own horizontal
+   scroller instead of squeezing columns unreadably thin, and chart controls
+   stack for easier tapping. */
+@media (max-width: 640px) {
+  #incidentTable, #ipTable{ overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #incidentTable table, #ipTable table{ width: max-content; min-width: 100%; }
+  .chart-controls{ align-items: flex-start; }
+  .segmented button{ padding: 8px 12px; }
+}
+</style>
+
+<div class="viz-root">
+  <div class="head-row">
+    <h1><img src="/logo.svg" alt="" class="logo-dog">dobermann — Storico</h1>
+  </div>
+  <p class="subtitle" id="subtitle">—</p>
+  <div class="nav">
+    <a href="/watchdash">Oggi</a>
+    <a href="/report">Storico</a>
+    <a href="/setup">Impostazioni</a>
+    <a href="/logout">Esci</a>
+  </div>
+  <div class="nav" id="periodNav"></div>
+  <div class="nav" id="dayNav"></div>
+  <div class="nav" id="exportNav"></div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="card">
+    <h2 id="hourlyTitle">Incidenti</h2>
+    <p class="card-sub" id="hourlySub">—</p>
+    <div class="chart-wrap" id="chartHourly"></div>
+  </div>
+
+  <div class="card">
+    <h2>Cause degli incidenti</h2>
+    <p class="card-sub">Numero di episodi per causa rilevata</p>
+    <div class="chart-wrap" id="chartCause"></div>
+  </div>
+
+  <div class="card">
+    <h2>Andamento nel tempo</h2>
+    <p class="card-sub">Incidenti e cambi IP sovrapposti sull'asse del tempo. Le serie attive sono sullo stesso grafico, ciascuna scalata sul proprio picco (unità diverse, non un asse condiviso) — valori esatti nel tooltip e nella legenda.</p>
+    <div class="chart-controls">
+      <div class="segmented" id="modeSelect">
+        <button type="button" data-mode="bw" class="active">Banda</button>
+        <button type="button" data-mode="rtt">Latenza</button>
+        <button type="button" data-mode="loss">Perdita pacchetti</button>
+        <button type="button" data-mode="signal">Segnale cellulare</button>
+      </div>
+      <label class="check"><input type="checkbox" id="toggleIncidents" checked> Incidenti</label>
+      <label class="check"><input type="checkbox" id="toggleIpChanges" checked> Cambi IP</label>
+      <span id="fineDetailBadge" class="zoom-hint" style="margin:0"></span>
+    </div>
+    <div class="legend" id="timelineLegend"></div>
+    <p class="zoom-hint">Trascina sul grafico per ingrandire un intervallo; clic su una riga del registro sotto per saltare direttamente al dettaglio di quell'incidente.</p>
+    <div class="chart-wrap" id="chartTimeline"></div>
+  </div>
+
+  <div class="card">
+    <h2>Registro incidenti</h2>
+    <p class="card-sub">Ogni riga è un episodio continuo classificato con causa probabile</p>
+    <div id="incidentTable"></div>
+  </div>
+
+  <div class="card">
+    <h2>Cambi di IP pubblico</h2>
+    <p class="card-sub">Ogni cambio interrompe per alcuni minuti la raggiungibilità dall'esterno se non aggiorni un DDNS</p>
+    <div id="ipTable"></div>
+  </div>
+
+  <p class="footer" id="footer"></p>
+</div>
+
+<script>
+const DATA = /*__DATA__*/;
+function escHtml(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+if (!DATA.has_cellular) document.querySelectorAll('[data-mode="signal"]').forEach(b => b.remove());
+function sourceText(){
+  const s = DATA.source || {};
+  const dns = [s.dns_local && ('locale ' + s.dns_local), s.dns_external && ('esterno ' + s.dns_external)].filter(Boolean).join(', ');
+  return `Catena: ${escHtml(s.chain || 'non configurata')}.` + (s.link ? ` Linea: ${escHtml(s.link)}.` : '') + ` Ancore: ${escHtml((s.anchors || []).join(' / '))}` +
+         (dns ? `. DNS: ${escHtml(dns)}` : '') + '.';
+}
+
+
+const CAUSE_META = {
+  GATEWAY_UNRESPONSIVE: { label: "Il router non risponde (LAN)", color: "var(--s1)", hex_l: "#2a78d6", hex_d: "#3987e5" },
+  CELLULAR_NO_SERVICE:  { label: "Modem mobile senza servizio dall'operatore", color: "#8b1e3f", hex_l: "#8b1e3f", hex_d: "#c2456b" },
+  LOCAL_LINK_DOWN:      { label: "Collegamento WAN del router interrotto", color: "#9c5b1f", hex_l: "#9c5b1f", hex_d: "#c47a34" },
+  WAN_DISCONNECTED:     { label: "Il router segnala la WAN disconnessa", color: "var(--s2)", hex_l: "#eb6834", hex_d: "#d95926" },
+  UPSTREAM_OUTAGE:      { label: "Internet irraggiungibile oltre il router", color: "var(--s3)", hex_l: "#1baf7a", hex_d: "#199e70" },
+  IP_CHANGE_DROP:       { label: "Drop per cambio IP", color: "var(--s4)", hex_l: "#eda100", hex_d: "#c98500" },
+  DNS_FAILURE_LOCAL:    { label: "DNS locale non risponde", color: "var(--s5)", hex_l: "#e87ba4", hex_d: "#d55181" },
+  DNS_FAILURE_UPSTREAM: { label: "DNS non risponde (anche esterno)", color: "var(--s6)", hex_l: "#008300", hex_d: "#008300" },
+  PACKET_LOSS:          { label: "Perdita pacchetti", color: "var(--s7)", hex_l: "#4a3aa7", hex_d: "#9085e9" },
+  HIGH_LATENCY:         { label: "Latenza elevata", color: "var(--s8)", hex_l: "#e34948", hex_d: "#e66767" },
+  IP_RENEWAL_CYCLE:     { label: "Riconnessione per rinnovo IP (routine, non un guasto)", color: "var(--good)", hex_l: "#0ca30c", hex_d: "#0ca30c" },
+  CELLULAR_3G_FALLBACK: { label: "Modem mobile ripiegato su 3G/2G", color: "#7a7a1f", hex_l: "#7a7a1f", hex_d: "#a6a63a" },
+  PING_ARTIFACT:        { label: "Artefatto di misura (storico importato)", color: "var(--text-muted)", hex_l: "#898781", hex_d: "#898781" },
+};
+
+function fmtDate(ts){
+  const d = new Date(ts*1000);
+  // month spelled out (abbreviated) rather than numeric -- "4 ago" can't be
+  // misread as day/month-swapped the way "04/08" can
+  return d.toLocaleString('it-IT', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+function fmtDayLabel(dayStr){
+  const [y,m,d] = dayStr.split('-').map(Number);
+  return new Date(y, m-1, d).toLocaleString('it-IT', { day:'numeric', month:'short', year:'numeric' });
+}
+function fmtMonthLabel(monthStr){
+  const [y,m] = monthStr.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleString('it-IT', { month:'short', year:'numeric' });
+}
+function fmtDur(s){
+  s = Math.round(s);
+  if (s < 60) return s + "s";
+  const m = Math.floor(s/60), r = s%60;
+  if (m < 60) return m + "m" + (r? " "+r+"s":"");
+  const h = Math.floor(m/60), rm = m%60;
+  return h + "h" + (rm? " "+rm+"m":"");
+}
+function fmtBps(v){
+  if (v == null) return "—";
+  if (v > 1024*1024) return (v/1024/1024).toFixed(1) + " MB/s";
+  if (v > 1024) return (v/1024).toFixed(0) + " KB/s";
+  return Math.round(v) + " B/s";
+}
+
+function thInfo(label, desc){
+  return `<th>${label} <span class="info-icon" title="${desc}">ⓘ</span></th>`;
+}
+
+const PERIOD_LABELS = { day: "Giorno", week: "Settimana", month: "Mese", year: "Anno" };
+
+function toDateStr(ts){
+  const d = new Date(ts*1000);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function renderPeriodNav(){
+  const el = document.getElementById('periodNav');
+  el.innerHTML = Object.keys(PERIOD_LABELS).map(p => {
+    const active = p === DATA.period;
+    return `<a href="/report?period=${p}" class="${active?'active':''}">${PERIOD_LABELS[p]}</a>`;
+  }).join('');
+}
+
+function renderDayNav(){
+  const el = document.getElementById('dayNav');
+  if (DATA.period !== 'day') { el.innerHTML = ''; return; }
+  const prevHref = DATA.prev_day ? `/report?period=day&date=${DATA.prev_day}` : null;
+  const nextHref = DATA.next_day ? `/report?period=day&date=${DATA.next_day}` : null;
+  el.innerHTML =
+    `<a href="${prevHref || '#'}" class="${prevHref?'':'disabled'}">← precedente</a>` +
+    `<span class="day-label">${fmtDayLabel(DATA.day)}</span>` +
+    `<a href="${nextHref || '#'}" class="${nextHref?'':'disabled'}">successivo →</a>`;
+}
+
+function renderExportNav(){
+  const el = document.getElementById('exportNav');
+  const from = toDateStr(DATA.range_start), to = toDateStr(DATA.range_end - 1);
+  el.innerHTML =
+    `<a href="/export?table=samples&from=${from}&to=${to}">Esporta CSV (grezzo)</a>` +
+    `<a href="/export?table=hourly&from=${from}&to=${to}">Esporta CSV (orario)</a>`;
+}
+
+function renderHeader(){
+  const start = DATA.range_start, end = DATA.range_end;
+  const periodLabel = PERIOD_LABELS[DATA.period] || 'Storico';
+  document.getElementById('subtitle').innerHTML =
+    `${periodLabel}: <b>${fmtDate(start)}</b> → <b>${fmtDate(end)}</b>` +
+    ` · generato <b>${fmtDate(DATA.generated_at)}</b> · ${DATA.total_samples} campioni` +
+    (DATA.raw_detail_available ? ` (dettaglio ${DATA.current_interval_s}s dove disponibile, il resto da aggregati orari)` : ` (da aggregati orari — oltre i ${DATA.raw_retention_days}gg di dettaglio grezzo)`) +
+    ` · <a href="/watchdash">torna al live →</a>`;
+}
+
+function renderTiles(){
+  const t = document.getElementById('tiles');
+  const items = [
+    { label: "Uptime periodo", value: DATA.uptime_pct != null ? DATA.uptime_pct.toFixed(2)+"%" : "—", hint: DATA.total_samples+" campioni" },
+    { label: "Incidenti totali", value: DATA.real_incidents_count, hint: Object.keys(DATA.by_cause).length+" cause distinte" + (DATA.incidents.length > DATA.real_incidents_count ? ` (+${DATA.incidents.length - DATA.real_incidents_count} falsi positivi)` : ''), warn: DATA.real_incidents_count>0 },
+    { label: "IP WAN (fine periodo)", value: escHtml(DATA.current_wan_ip || "—"), small:true, hint: DATA.ip_changes.length+" cambi nel periodo" },
+    { label: "Stato WAN del router", value: escHtml(DATA.current_wan_status || "—"), small:true },
+  ];
+  t.innerHTML = items.map(i => `
+    <div class="tile ${i.warn?'warn':''}">
+      <div class="label">${i.label}</div>
+      <div class="value ${i.small?'small':''}">${i.value}</div>
+      ${i.hint?`<div class="hint">${i.hint}</div>`:''}
+    </div>`).join('');
+}
+
+function svgEl(tag, attrs){
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+function makeTooltip(container){
+  const tip = document.createElement('div');
+  tip.className = 'tooltip';
+  container.style.position = 'relative';
+  container.appendChild(tip);
+  return tip;
+}
+
+function barChartByBucket(container, data, opts){
+  if (!data.some(d => d.count > 0)) {
+    container.innerHTML = '<div class="empty">Nessun incidente registrato in questo periodo — buon segno, oppure serve più tempo di raccolta.</div>';
+    return;
+  }
+  const W = 1020, H = 220, padL = 34, padR = 10, padT = 10, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const max = Math.max(...data.map(d => d.count), 1);
+  const bw = plotW / data.length;
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', height: H });
+  const tip = makeTooltip(container);
+  const tickStride = Math.max(1, Math.ceil(data.length / 24));
+
+  [0,0.5,1].forEach(f => {
+    const y = padT + plotH * (1-f);
+    svg.appendChild(svgEl('line', { x1: padL, x2: W-padR, y1: y, y2: y, class: 'grid-line' }));
+    const t = svgEl('text', { x: padL-6, y: y+3, 'text-anchor': 'end' });
+    t.textContent = Math.round(max*f);
+    svg.appendChild(t);
+  });
+  svg.appendChild(svgEl('line', { x1: padL, x2: W-padR, y1: padT+plotH, y2: padT+plotH, class:'axis-line' }));
+
+  data.forEach((d, i) => {
+    const h = (d.count / max) * plotH;
+    const x = padL + i*bw + bw*0.15;
+    const w = bw*0.7;
+    const y = padT + plotH - h;
+    const clickable = d.count > 0 && opts.getRange;
+    const rect = svgEl('rect', { x, y, width: w, height: Math.max(h,0), rx: 3, fill: 'var(--seq-500)' });
+    if (clickable) rect.style.cursor = 'pointer';
+    svg.appendChild(rect);
+    const tipHtml = (forTouch) => {
+      const events = opts.getEvents(d);
+      let html = `<b>${opts.getLabel(d)}</b><br>${d.count} incidenti · ${fmtDur(d.total_seconds)} totali`;
+      if (events.length) {
+        html += '<br><br>' + events.slice(0, 6).map(ev => {
+          const meta = CAUSE_META[ev.cause] || { label: ev.cause };
+          return `${fmtDate(ev.start_ts)} — ${meta.label} (${fmtDur(ev.duration_s)})`;
+        }).join('<br>');
+        if (events.length > 6) html += `<br>+${events.length - 6} altri`;
+      }
+      if (clickable) html += forTouch ? '<br><br><i>tocca di nuovo per il dettaglio</i>' : '<br><br><i>clic per vedere il dettaglio</i>';
+      return html;
+    };
+    const placeTip = (clientX, clientY) => {
+      const r = container.getBoundingClientRect();
+      tip.style.left = (clientX - r.left + 12) + 'px';
+      tip.style.top = (clientY - r.top - 30) + 'px';
+    };
+    rect.addEventListener('mouseenter', () => {
+      rect.setAttribute('fill', 'var(--s2)');
+      tip.style.opacity = 1;
+      tip.innerHTML = tipHtml(false);
+    });
+    rect.addEventListener('mousemove', e => placeTip(e.clientX, e.clientY));
+    rect.addEventListener('mouseleave', () => { rect.setAttribute('fill','var(--seq-500)'); tip.style.opacity = 0; });
+    if (clickable) {
+      rect.addEventListener('click', () => {
+        zoomRange = opts.getRange(d);
+        renderTimeline();
+        document.getElementById('chartTimeline').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+    // touch: no hover state exists, so the first tap previews the tooltip
+    // (like mouseenter) and a second tap on the same bar confirms the zoom
+    // (like click) -- this way a tap never jumps straight to zooming blind
+    let touchArmed = false;
+    rect.addEventListener('touchstart', e => {
+      e.preventDefault();
+      rect.setAttribute('fill', 'var(--s2)');
+      tip.style.opacity = 1;
+      tip.innerHTML = tipHtml(true);
+      placeTip(e.touches[0].clientX, e.touches[0].clientY);
+      if (clickable && touchArmed) {
+        zoomRange = opts.getRange(d);
+        renderTimeline();
+        document.getElementById('chartTimeline').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        touchArmed = false;
+      } else {
+        touchArmed = true;
+      }
+    }, { passive: false });
+    if (i % tickStride === 0) {
+      const t = svgEl('text', { x: x + w/2, y: H-8, 'text-anchor':'middle' });
+      t.textContent = opts.getTick(d);
+      svg.appendChild(t);
+    }
+  });
+  container.appendChild(svg);
+}
+
+// A "day" period is one midnight-to-midnight calendar day, so hour-of-day
+// (0-23) is unambiguous here (each hour occurs exactly once, in order) --
+// unlike a rolling window, it never straddles two different calendar days.
+// week/month bucket by calendar day, year by calendar month.
+function pickIncidentBucket(){
+  if (DATA.period === 'day') {
+    return { data: DATA.by_hour, title: 'Incidenti per ora',
+      sub: 'Conteggio incidenti per ora di questo giorno; passa il mouse per il dettaglio di ogni evento',
+      getLabel: d => `${String(d.hour).padStart(2,'0')}:00–${String(d.hour).padStart(2,'0')}:59`,
+      getTick: d => d.hour,
+      getEvents: d => DATA.incidents.filter(i => new Date(i.start_ts*1000).getHours() === d.hour) };
+  }
+  if (DATA.period === 'year') {
+    return { data: DATA.by_month, title: 'Incidenti per mese',
+      sub: 'Conteggio incidenti per mese; passa il mouse per il dettaglio, clic per zoomare',
+      getLabel: d => fmtMonthLabel(d.month),
+      getTick: d => fmtMonthLabel(d.month).split(' ')[0],
+      getEvents: d => { const [s,e] = monthRange(d.month); return DATA.incidents.filter(i => i.start_ts >= s && i.start_ts < e); },
+      getRange: d => monthRange(d.month) };
+  }
+  return { data: DATA.by_day, title: 'Incidenti per giorno',
+    sub: 'Conteggio incidenti per giorno di calendario; passa il mouse per il dettaglio, clic per zoomare',
+    getLabel: d => fmtDayLabel(d.day),
+    getTick: d => Number(d.day.slice(8,10)),
+    getEvents: d => { const [s,e] = dayRange(d.day); return DATA.incidents.filter(i => i.start_ts >= s && i.start_ts < e); },
+    getRange: d => dayRange(d.day) };
+}
+
+function dayRange(dayStr){
+  const [y,m,dd] = dayStr.split('-').map(Number);
+  const start = new Date(y, m-1, dd).getTime()/1000;
+  return [start, start + 86400];
+}
+function monthRange(monthStr){
+  const [y,m] = monthStr.split('-').map(Number);
+  const start = new Date(y, m-1, 1).getTime()/1000;
+  const end = new Date(m===12 ? y+1 : y, m===12 ? 0 : m, 1).getTime()/1000;
+  return [start, end];
+}
+
+function barChartCause(container, byCause){
+  const keys = Object.keys(byCause);
+  if (!keys.length) {
+    container.innerHTML = '<div class="empty">Nessun incidente classificato in questo periodo.</div>';
+    return;
+  }
+  const order = Object.keys(CAUSE_META).filter(k => keys.includes(k));
+  const W = 1020, rowH = 34, padL = 190, padR = 60, padT = 6;
+  const H = padT*2 + order.length*rowH;
+  const max = Math.max(...order.map(k => byCause[k].count));
+  const svg = svgEl('svg', { viewBox:`0 0 ${W} ${H}`, width:'100%', height: H });
+  const tip = makeTooltip(container);
+  order.forEach((k, i) => {
+    const meta = CAUSE_META[k];
+    const val = byCause[k].count;
+    const y = padT + i*rowH;
+    const w = (val/max) * (W - padL - padR);
+    const label = svgEl('text', { x: padL-10, y: y+rowH/2+3, 'text-anchor':'end' });
+    label.textContent = meta.label;
+    label.setAttribute('fill', 'var(--text-secondary)');
+    svg.appendChild(label);
+    const rect = svgEl('rect', { x: padL, y: y+6, width: Math.max(w,2), height: rowH-14, rx: 4, fill: meta.color });
+    svg.appendChild(rect);
+    const vt = svgEl('text', { x: padL + w + 8, y: y+rowH/2+3 });
+    vt.textContent = val;
+    vt.setAttribute('fill', 'var(--text-primary)');
+    svg.appendChild(vt);
+    const placeTip = (clientX, clientY) => {
+      const r = container.getBoundingClientRect();
+      tip.style.left = (clientX - r.left + 12) + 'px';
+      tip.style.top = (clientY - r.top - 30) + 'px';
+    };
+    rect.addEventListener('mouseenter', () => {
+      tip.style.opacity = 1;
+      tip.innerHTML = `<b>${meta.label}</b><br>${val} episodi · ${fmtDur(byCause[k].total_seconds)} totali`;
+    });
+    rect.addEventListener('mousemove', e => placeTip(e.clientX, e.clientY));
+    rect.addEventListener('mouseleave', () => tip.style.opacity = 0);
+    // touch has no hover -- a tap previews the same tooltip a mouse hover would
+    rect.addEventListener('touchstart', e => {
+      e.preventDefault();
+      tip.style.opacity = 1;
+      tip.innerHTML = `<b>${meta.label}</b><br>${val} episodi · ${fmtDur(byCause[k].total_seconds)} totali`;
+      placeTip(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: false });
+  });
+  container.appendChild(svg);
+}
+
+function niceTimeTicks(xMin, xMax, targetCount){
+  // picks a "nice" step (1/5/15/30min, 1/2/3/6/12h, 1/2/7/14/30/90/182/365 days)
+  // and snaps every tick to a boundary of that step (on the hour, or local
+  // midnight for day+ steps) instead of dividing the range into equal
+  // fractions -- which almost never lands on a round clock time.
+  const spanSec = xMax - xMin;
+  const steps = [5,10,15,30,60,300,900,1800,3600,2*3600,3*3600,6*3600,12*3600,86400,2*86400,7*86400,14*86400,30*86400,90*86400,182*86400,365*86400];
+  let step = steps[steps.length-1];
+  for (const s of steps) { if (spanSec / s <= targetCount) { step = s; break; } }
+  const ticks = [];
+  let guard = 0;
+  if (step >= 86400) {
+    const days = step / 86400;
+    let d = new Date(xMin * 1000);
+    d.setHours(0,0,0,0);
+    while (d.getTime()/1000 < xMin) d.setDate(d.getDate() + days);
+    while (d.getTime()/1000 <= xMax && guard < 400) {
+      ticks.push({ ts: d.getTime()/1000, showDate: true });
+      d.setDate(d.getDate() + days);
+      guard++;
+    }
+  } else {
+    let t = Math.ceil(xMin / step) * step;
+    while (t <= xMax && guard < 400) {
+      ticks.push({ ts: t, showDate: false });
+      t += step;
+      guard++;
+    }
+  }
+  return ticks;
+}
+
+function lineChart(container, series, opts){
+  const fullTl = opts.timelineData || DATA.timeline;
+  const range = opts.xRange;
+  if (!fullTl.length) {
+    container.innerHTML = '<div class="empty">Dati insufficienti per il grafico.</div>';
+    if (range) addResetZoomButton(container, opts);
+    return;
+  }
+  const fullXs = fullTl.map(d => d.ts);
+  const fullMin = Math.min(...fullXs), fullMax = Math.max(...fullXs);
+  const W = 1020, H = 220, padL = 14, padR = 10, padT = 10, padB = 22;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+  const xMin = range ? range[0] : fullMin;
+  const xMax = range ? range[1] : fullMax;
+  const tl = fullTl.filter(d => d.ts >= xMin && d.ts <= xMax);
+  if (!tl.length) {
+    container.innerHTML = '<div class="empty">Nessun dato in questo intervallo.</div>';
+    if (range) addResetZoomButton(container, opts);
+    return;
+  }
+  const xSpan = Math.max(xMax - xMin, 1);
+  const xOf = ts => padL + ((ts - xMin)/xSpan) * plotW;
+  const xToTs = x => xMin + ((x - padL)/plotW) * xSpan;
+  // incidents (esp. single-sample ones) can be far narrower than one pixel at
+  // this zoom level; widen them to a minimum on-screen width so they stay both
+  // visible and hoverable, using the SAME widened range for drawing and for the
+  // tooltip hit-test below (must match, or a mouse in the visible band would miss).
+  const minWidthSec = (xSpan / plotW) * 3;
+  const incidentSpan = inc => [inc.start_ts, inc.start_ts + Math.max(inc.duration_s, minWidthSec)];
+
+  // Different series have different units (bytes/s, ms, %) so they can't share
+  // one numeric y-axis without being misleading (dual-axis territory). Instead
+  // each series is normalized to its OWN peak and overlaid in the same plot --
+  // good for spotting "did this line move when the others did", with exact
+  // values always available via legend peaks + hover tooltip, never off the
+  // shared axis.
+  series.forEach(s => {
+    if (s.yDomain) {
+      // fixed domain (e.g. dBm signal metrics): auto-peak-from-0 doesn't
+      // make sense for values that are always negative
+      s._yMin = s.yDomain[0]; s._yMax = s.yDomain[1];
+    } else {
+      let m = Math.max(1, ...tl.map(d => d[s.key] || 0)) * 1.15;
+      if (s.yMaxCap) m = Math.min(m, s.yMaxCap);
+      s._yMin = 0; s._yMax = m;
+    }
+  });
+
+  const svg = svgEl('svg', { viewBox:`0 0 ${W} ${H}`, width:'100%', height: H });
+
+  // incident bands drawn first, as background context
+  if (opts.showIncidents) {
+    DATA.incidents.forEach(inc => {
+      const [s0, s1] = incidentSpan(inc);
+      if (s1 < xMin || s0 > xMax) return;
+      const x1 = xOf(Math.max(s0, xMin));
+      const x2 = Math.max(xOf(Math.min(s1, xMax)), x1 + 2);
+      svg.appendChild(svgEl('rect', { x: x1, y: padT, width: x2-x1, height: plotH, fill: 'var(--critical)', opacity: 0.3 }));
+    });
+  }
+
+  [0,0.5,1].forEach(f => {
+    const y = padT + plotH*(1-f);
+    svg.appendChild(svgEl('line', { x1:padL, x2:W-padR, y1:y, y2:y, class:'grid-line' }));
+  });
+  svg.appendChild(svgEl('line', { x1:padL, x2:W-padR, y1:padT+plotH, y2:padT+plotH, class:'axis-line' }));
+  niceTimeTicks(xMin, xMax, 7).forEach(({ts, showDate}) => {
+    const x = xOf(ts);
+    const t = svgEl('text', { x, y: H-6, 'text-anchor':'middle' });
+    const dt = new Date(ts*1000);
+    t.textContent = showDate
+      ? dt.toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit'})
+      : dt.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
+    svg.appendChild(t);
+  });
+
+  series.forEach(s => {
+    const span = s._yMax - s._yMin;
+    const pts = tl.map(d => {
+      const x = xOf(d.ts);
+      const v = d[s.key];
+      const vc = v == null ? s._yMin : Math.min(Math.max(v, s._yMin), s._yMax);
+      const y = padT + plotH - ((vc - s._yMin)/span)*plotH;
+      return [x,y,v];
+    });
+    const path = pts.map((p,i) => (i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+    svg.appendChild(svgEl('path', { d: path, fill:'none', stroke: s.color, 'stroke-width':1.25, 'stroke-linejoin':'round', opacity: s.opacity != null ? s.opacity : 1 }));
+  });
+
+  // IP change markers drawn above the lines
+  if (opts.showIpChanges) {
+    DATA.ip_changes.forEach(c => {
+      if (c.ts < xMin || c.ts > xMax) return;
+      const x = xOf(c.ts);
+      svg.appendChild(svgEl('line', { x1:x, x2:x, y1:padT, y2:padT+plotH, stroke:'var(--s4)', 'stroke-width':1.5, 'stroke-dasharray':'3,2' }));
+      svg.appendChild(svgEl('circle', { cx:x, cy:padT, r:4, fill:'var(--s4)' }));
+    });
+  }
+
+  const tip = makeTooltip(container);
+  const hoverLine = svgEl('line', { x1:0,x2:0,y1:padT,y2:padT+plotH, stroke:'var(--baseline)', 'stroke-width':1, opacity:0 });
+  svg.appendChild(hoverLine);
+  const selectionRect = svgEl('rect', { x:padL, y:padT, width:0, height:plotH, fill:'var(--s1)', opacity:0.12, stroke:'var(--s1)', 'stroke-width':1, 'stroke-dasharray':'3,2', visibility:'hidden' });
+  svg.appendChild(selectionRect);
+
+  let dragStartX = null;
+  const clampX = x => Math.min(padL + plotW, Math.max(padL, x));
+
+  const hitRect = svgEl('rect', { x: padL, y: padT, width: plotW, height: plotH, fill: 'transparent', cursor: 'crosshair' });
+
+  // Shared by mouse and touch so the two input paths can never drift apart --
+  // a mouse only ever sends mouse events and a touchscreen only ever sends
+  // touch events, so wiring both to the same logic is purely additive and
+  // never changes mouse (desktop) behavior.
+  function pointerDown(clientX){
+    const r = container.querySelector('svg').getBoundingClientRect();
+    dragStartX = clampX((clientX - r.left) / r.width * W);
+    selectionRect.setAttribute('x', dragStartX);
+    selectionRect.setAttribute('width', 0);
+    selectionRect.setAttribute('visibility', 'visible');
+  }
+
+  function pointerMove(clientX, clientY){
+    const r = container.querySelector('svg').getBoundingClientRect();
+    const relX = (clientX - r.left) / r.width * W;
+    const frac = Math.min(1, Math.max(0, (relX - padL)/plotW));
+    const hoverTs = xMin + frac * xSpan;
+
+    if (dragStartX !== null) {
+      const curX = clampX(relX);
+      selectionRect.setAttribute('x', Math.min(dragStartX, curX));
+      selectionRect.setAttribute('width', Math.abs(curX - dragStartX));
+      return;
+    }
+
+    const idx = Math.round(frac * (tl.length-1));
+    const d = tl[idx];
+    if (!d) return;
+    const x = xOf(d.ts);
+    hoverLine.setAttribute('x1', x); hoverLine.setAttribute('x2', x); hoverLine.setAttribute('opacity', 1);
+    tip.style.opacity = 1;
+    const rc = container.getBoundingClientRect();
+    tip.style.left = (clientX - rc.left + 12) + 'px';
+    tip.style.top = (clientY - rc.top - 40) + 'px';
+
+    let html = `<b>${new Date(d.ts*1000).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</b><br>` +
+      series.map(s => `<span style="color:${s.color}">⬤</span> ${s.label}: ${s.fmt ? s.fmt(d[s.key]) : (d[s.key]==null?'—':d[s.key])}`).join('<br>');
+
+    if (opts.showIncidents) {
+      const inc = DATA.incidents.find(i => { const [s0,s1] = incidentSpan(i); return hoverTs >= s0 && hoverTs <= s1; });
+      if (inc) {
+        const meta = CAUSE_META[inc.cause] || { label: inc.cause };
+        html += `<br><span style="color:var(--critical)">⬤ ${meta.label} — ${fmtDur(inc.duration_s)}</span>`;
+      }
+    }
+    if (opts.showIpChanges) {
+      const pxPerSec = plotW / xSpan;
+      const nearIp = DATA.ip_changes.find(c => Math.abs(c.ts - hoverTs) * pxPerSec < 6);
+      if (nearIp) {
+        html += `<br><span style="color:var(--s4)">⬤ cambio IP: ${escHtml(nearIp.ip_before)} → ${escHtml(nearIp.ip_after)}</span>`;
+      }
+    }
+    tip.innerHTML = html;
+  }
+
+  function endDrag(clientX){
+    if (dragStartX === null) return;
+    const r = container.querySelector('svg').getBoundingClientRect();
+    const curX = clampX((clientX - r.left) / r.width * W);
+    const dragPx = Math.abs(curX - dragStartX);
+    selectionRect.setAttribute('visibility', 'hidden');
+    const s0 = dragStartX;
+    dragStartX = null;
+    if (dragPx > 6 && opts.onZoom) {
+      const t0 = xToTs(Math.min(s0, curX)), t1 = xToTs(Math.max(s0, curX));
+      opts.onZoom([t0, t1]);
+    }
+  }
+
+  hitRect.addEventListener('mousedown', e => pointerDown(e.clientX));
+  hitRect.addEventListener('mousemove', e => pointerMove(e.clientX, e.clientY));
+  hitRect.addEventListener('mouseup', e => endDrag(e.clientX));
+  hitRect.addEventListener('mouseleave', e => {
+    tip.style.opacity = 0; hoverLine.setAttribute('opacity',0);
+    if (dragStartX !== null) endDrag(e.clientX);
+  });
+
+  // touch: a drag over the chart selects a zoom range (like the mouse), so
+  // the page mustn't scroll while that gesture is in progress -- preventDefault
+  // is scoped to just these three listeners on the chart's own hit area, so
+  // scrolling anywhere else on the page is completely unaffected
+  hitRect.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    pointerDown(t.clientX);
+    pointerMove(t.clientX, t.clientY);
+  }, { passive: false });
+  hitRect.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    pointerMove(t.clientX, t.clientY);
+  }, { passive: false });
+  hitRect.addEventListener('touchend', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    endDrag(t.clientX);
+    tip.style.opacity = 0; hoverLine.setAttribute('opacity', 0);
+  }, { passive: false });
+  svg.appendChild(hitRect);
+
+  container.appendChild(svg);
+  if (range) addResetZoomButton(container, opts);
+}
+
+function addResetZoomButton(container, opts){
+  const btn = document.createElement('button');
+  btn.textContent = '⟲ Reset zoom';
+  btn.className = 'zoom-reset-btn';
+  btn.addEventListener('click', () => { if (opts.onResetZoom) opts.onResetZoom(); });
+  container.appendChild(btn);
+}
+
+function renderIncidentTable(){
+  const el = document.getElementById('incidentTable');
+  if (!DATA.incidents.length) { el.innerHTML = '<div class="empty">Nessun incidente in questo periodo.</div>'; return; }
+  const rows = DATA.incidents.slice().reverse().map(i => {
+    const meta = CAUSE_META[i.cause] || { label: escHtml(i.cause), color: 'var(--text-muted)' };
+    // a merged incident that passed through several causes (e.g. a local
+    // link drop that cascaded into a WAN renegotiation and a fresh-IP
+    // settling blip) shows its full phase sequence under the root cause,
+    // so the "why" of the aggregated row stays visible, not hidden
+    const phaseSeq = (i.phases && i.phases.length > 1)
+      ? `<div class="zoom-hint" style="margin:2px 0 0">${i.phases.map(p => (CAUSE_META[p.cause] || {label:escHtml(p.cause)}).label).join(' → ')}</div>`
+      : '';
+    return `<tr class="incident-row" onclick="zoomToIncident(${i.start_ts})" title="Clic per vedere il dettaglio sul grafico">
+      <td class="cause"><span class="dot" style="background:${meta.color}"></span>${meta.label}${phaseSeq}</td>
+      <td>${fmtDate(i.start_ts)}</td>
+      <td>${fmtDur(i.duration_s)}</td>
+      <td>${i.max_internet_loss!=null ? Math.min(100, i.max_internet_loss).toFixed(0) : '—'}%</td>
+      <td>${i.max_rtt ? i.max_rtt.toFixed(0)+' ms' : '—'}</td>
+      <td>${i.ip_before !== i.ip_after ? (escHtml(i.ip_before)+' → '+escHtml(i.ip_after)) : '—'}</td>
+      <td>${fmtBps(Math.max(i.max_rx_bps||0, i.max_tx_bps||0))}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<table><thead><tr>
+    ${thInfo('Causa', 'Il tipo di problema, classificato in automatico da cosa risultava raggiungibile in quel momento (router, ancore esterne, DNS, stato riportato dagli apparati della catena)')}
+    ${thInfo('Inizio', 'Data e ora del primo campione in cui è stato rilevato il problema')}
+    ${thInfo('Durata', "Per quanto tempo è durato, in multipli dell'intervallo di campionamento usato in quel momento — non è mai più precisa di quello")}
+    ${thInfo('Loss max', "La percentuale massima di pacchetti persi verso le ancore esterne durante l'incidente")}
+    ${thInfo('RTT max', "La latenza massima (in millisecondi) misurata verso le ancore esterne durante l'incidente")}
+    ${thInfo('Cambio IP', "Se l'IP WAN del router è cambiato durante l'incidente, IP precedente → IP nuovo")}
+    ${thInfo('Banda picco', "Il valore più alto tra banda in download e upload (byte/s) registrato durante l'incidente — se è alto, un trasferimento pesante potrebbe aver contribuito")}
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderIpTable(){
+  const el = document.getElementById('ipTable');
+  if (!DATA.ip_changes.length) { el.innerHTML = '<div class="empty">Nessun cambio di IP pubblico in questo periodo.</div>'; return; }
+  const rows = DATA.ip_changes.slice().reverse().map(c => `<tr>
+    <td>${fmtDate(c.ts)}</td><td>${escHtml(c.ip_before)}</td><td>→</td><td>${escHtml(c.ip_after)}</td>
+  </tr>`).join('');
+  el.innerHTML = `<table><thead><tr><th>Quando</th><th>IP precedente</th><th></th><th>IP nuovo</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// touch has no hover-out event, so a tap on a chart's tooltip can otherwise
+// linger forever; a tap anywhere outside any chart's SVG dismisses it
+document.addEventListener('touchstart', e => {
+  if (!e.target.closest('svg')) document.querySelectorAll('.tooltip').forEach(t => t.style.opacity = 0);
+}, { passive: true });
+
+renderHeader();
+renderPeriodNav();
+renderDayNav();
+renderExportNav();
+renderTiles();
+{
+  const bucket = pickIncidentBucket();
+  document.getElementById('hourlyTitle').textContent = bucket.title;
+  document.getElementById('hourlySub').textContent = bucket.sub;
+  barChartByBucket(document.getElementById('chartHourly'), bucket.data, bucket);
+}
+barChartCause(document.getElementById('chartCause'), DATA.by_cause);
+
+const TIMELINE_MODES = {
+  bw: { series: [
+    { key:'recv_bps', label:'Download', color:'var(--s1)', fmt: fmtBps },
+    { key:'send_bps', label:'Upload', color:'var(--s2)', fmt: fmtBps },
+  ] },
+  rtt: { series: [
+    { key:'rtt_ms', label:'Latenza', color:'var(--rtt-yellow)', fmt: v => v==null?'—':v.toFixed(0)+' ms' },
+  ] },
+  loss: { series: [
+    { key:'loss_pct', label:'Perdita pacchetti', color:'var(--s8)', fmt: v => v==null?'—':v.toFixed(0)+'%', yMaxCap: 100 },
+  ] },
+  signal: { series: [
+    { key:'lte_rsrp', label:'LTE RSRP', color:'var(--s3)', fmt: v => v==null?'—':v.toFixed(0)+' dBm',
+      yDomain:[-120,-70], summarize: avgSummary },
+    { key:'nr_rsrp', label:'5G RSRP', color:'var(--s5)', fmt: v => v==null?'—':v.toFixed(0)+' dBm',
+      yDomain:[-120,-70], summarize: avgSummary },
+  ] },
+};
+function avgSummary(vals){
+  const n = vals.filter(v => v != null);
+  return { word: 'media', value: n.length ? n.reduce((a,b) => a+b, 0)/n.length : null };
+}
+// Zoom/modes/toggle state is mirrored into the URL (history.replaceState, no
+// navigation) so a reload -- e.g. after following a prev/next day link back
+// and forth -- lands back on the same view instead of resetting it.
+const urlParams = new URLSearchParams(location.search);
+const RANK_OPACITY = [1, 0.55, 0.3]; // 1st clicked = full strength, 2nd fainter, 3rd fainter still
+// order = click priority: first clicked is most prominent (drawn on top, full
+// opacity, solid button); each one after is progressively fainter, both on the
+// chart and on its own button, so it's obvious what's foreground vs. background.
+let selectionOrder = (urlParams.get('modes') || 'bw').split(',').filter(k => TIMELINE_MODES[k]);
+if (!selectionOrder.length) selectionOrder = ['bw'];
+let showIncidents = urlParams.get('inc') !== '0';
+let showIpChanges = urlParams.get('ipc') !== '0';
+let zoomRange = (urlParams.has('zf') && urlParams.has('zt'))
+  ? [Number(urlParams.get('zf')), Number(urlParams.get('zt'))]
+  : null;
+
+function syncUrlState(){
+  const p = new URLSearchParams(location.search);
+  p.set('modes', selectionOrder.join(','));
+  p.set('inc', showIncidents ? '1' : '0');
+  p.set('ipc', showIpChanges ? '1' : '0');
+  if (zoomRange) { p.set('zf', Math.round(zoomRange[0])); p.set('zt', Math.round(zoomRange[1])); }
+  else { p.delete('zf'); p.delete('zt'); }
+  history.replaceState(null, '', location.pathname + '?' + p.toString());
+}
+
+// Below a certain zoom width the pre-bucketed timeline (5-min buckets, or
+// hourly beyond the raw retention window) is coarser than the zoom itself --
+// fetch the real 15s samples for just that window instead of going "out of
+// scale". Only possible within the raw retention window (older data was
+// already rolled up and the seconds-level detail no longer exists anywhere).
+const RAW_DETAIL_THRESHOLD_SEC = 3 * 3600;
+const RAW_RETENTION_DAYS = DATA.raw_retention_days || 30;
+const fineCache = {};
+function fetchFineTimeline(range){
+  const key = Math.round(range[0]) + '-' + Math.round(range[1]);
+  if (!(key in fineCache)) {
+    fineCache[key] = fetch(`/api/samples?from=${Math.round(range[0])}&to=${Math.round(range[1])}`)
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null);
+  }
+  return fineCache[key];
+}
+
+let renderToken = 0;
+async function renderTimeline(){
+  const myToken = ++renderToken;
+  const badge = document.getElementById('fineDetailBadge');
+  let fineData = null;
+  const withinRetention = zoomRange && (DATA.generated_at - zoomRange[0]) <= RAW_RETENTION_DAYS * 86400;
+  if (zoomRange && (zoomRange[1] - zoomRange[0]) <= RAW_DETAIL_THRESHOLD_SEC && withinRetention) {
+    badge.textContent = 'carico dettaglio al secondo…';
+    fineData = await fetchFineTimeline(zoomRange);
+    if (myToken !== renderToken) return; // a newer render started meanwhile
+    badge.textContent = (fineData && fineData.length) ? `dettaglio grezzo: ${fineData.length} campioni (15s)` : '';
+  } else {
+    badge.textContent = '';
+  }
+
+  // series in click-priority order (first clicked = most prominent); each
+  // gets the opacity for its rank, applied both to the button and the line
+  const series = selectionOrder.flatMap((k, rank) => TIMELINE_MODES[k].series.map(s => (
+    { ...s, opacity: RANK_OPACITY[Math.min(rank, RANK_OPACITY.length - 1)] }
+  )));
+
+  const container = document.getElementById('chartTimeline');
+  container.innerHTML = '';
+  if (!series.length) {
+    container.innerHTML = '<div class="empty">Seleziona almeno una serie (Banda / Latenza / Perdita pacchetti).</div>';
+  } else {
+    // draw least-prominent first (bottom), most-prominent last (top)
+    lineChart(container, [...series].reverse(), {
+      showIncidents, showIpChanges, xRange: zoomRange, timelineData: fineData,
+      onZoom: r => { zoomRange = r; renderTimeline(); },
+      onResetZoom: () => { zoomRange = null; renderTimeline(); },
+    });
+  }
+
+  // Legend doubles as the "axis": each series shows its peak in the current
+  // view (real units), since there's no single shared numeric axis to read.
+  const src = fineData || DATA.timeline;
+  const viewData = zoomRange ? src.filter(d => d.ts >= zoomRange[0] && d.ts <= zoomRange[1]) : src;
+  let legendHtml = series.map(s => {
+    const vals = viewData.map(d => d[s.key]);
+    const { word, value } = s.summarize
+      ? s.summarize(vals)
+      : { word: 'picco', value: Math.max(0, ...vals.map(v => v || 0)) };
+    return `<span><span class="sw" style="background:${s.color};opacity:${s.opacity}"></span>${s.label} (${word} ${s.fmt(value)})</span>`;
+  }).join('');
+  if (showIncidents) legendHtml += `<span><span class="sw" style="background:var(--critical);opacity:.4"></span>Incidenti</span>`;
+  if (showIpChanges) legendHtml += `<span><span class="sw" style="background:var(--s4)"></span>Cambio IP</span>`;
+  document.getElementById('timelineLegend').innerHTML = legendHtml;
+
+  syncUrlState();
+}
+function updateModeButtons(){
+  document.querySelectorAll('#modeSelect button').forEach(btn => {
+    const rank = selectionOrder.indexOf(btn.dataset.mode);
+    btn.classList.toggle('active', rank !== -1);
+    btn.style.opacity = rank === -1 ? '' : RANK_OPACITY[Math.min(rank, RANK_OPACITY.length - 1)];
+  });
+}
+document.querySelectorAll('#modeSelect button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const k = btn.dataset.mode;
+    const i = selectionOrder.indexOf(k);
+    if (i !== -1) selectionOrder.splice(i, 1); else selectionOrder.push(k);
+    updateModeButtons();
+    renderTimeline();
+  });
+});
+updateModeButtons();
+document.getElementById('toggleIncidents').checked = showIncidents;
+document.getElementById('toggleIpChanges').checked = showIpChanges;
+document.getElementById('toggleIncidents').addEventListener('change', e => { showIncidents = e.target.checked; renderTimeline(); });
+document.getElementById('toggleIpChanges').addEventListener('change', e => { showIpChanges = e.target.checked; renderTimeline(); });
+renderTimeline();
+
+function zoomToIncident(startTs){
+  const inc = DATA.incidents.find(i => i.start_ts === startTs);
+  if (!inc) return;
+  const pad = Math.max(inc.duration_s * 4, 30 * 60);
+  zoomRange = [inc.start_ts - pad, inc.start_ts + inc.duration_s + pad];
+  renderTimeline();
+  document.getElementById('chartTimeline').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+renderIncidentTable();
+renderIpTable();
+
+document.getElementById('footer').innerHTML =
+  `${sourceText()} Questa è un'istantanea storica, generata al caricamento della pagina; per la giornata di oggi vai a <a href="/watchdash">Oggi</a>.`;
+</script>

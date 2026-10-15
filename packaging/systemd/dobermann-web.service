@@ -1,0 +1,25 @@
+[Unit]
+Description=dobermann: pannello web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dobermann
+Group=dobermann
+Environment=DOBERMANN_CONFIG_DIR=@CONFIG_DIR@
+Environment=DOBERMANN_STATE_DIR=@STATE_DIR@
+# DOBERMANN_BIND / DOBERMANN_PORT / DOBERMANN_TLS_PORT, if the defaults (0.0.0.0, 80, 443) do not fit
+EnvironmentFile=-@CONFIG_DIR@/web.env
+WorkingDirectory=@CODE_DIR@
+ExecStart=/usr/bin/python3 -m dobermann web
+# ports 80/443 are below 1024; "Rileva" pings the devices it finds
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
+NoNewPrivileges=yes
+Restart=always
+RestartSec=5
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

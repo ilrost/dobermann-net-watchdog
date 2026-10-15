@@ -1,0 +1,307 @@
+"""The web panel on a scratch port with temp config/state: login, pages, settings. No network."""
+import http.cookiejar
+import json
+import os
+import re
+import tempfile
+import threading
+import unittest
+import urllib.error
+import urllib.parse
+import urllib.request
+from http.server import ThreadingHTTPServer
+
+from dobermann import config
+from dobermann.diagnosis import Observation
+from dobermann.engine import Engine
+from dobermann.adapters.base import SampleResult
+from dobermann.web import server
+
+
+class WebCase(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.env = {k: os.environ.get(k) for k in ("DOBERMANN_CONFIG_DIR", "DOBERMANN_STATE_DIR")}
+        os.environ["DOBERMANN_CONFIG_DIR"] = os.path.join(self.tmp.name, "etc")
+        os.environ["DOBERMANN_STATE_DIR"] = os.path.join(self.tmp.name, "var")
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        self.base = f"http://127.0.0.1:{self.httpd.server_address[1]}"
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        self.jar = http.cookiejar.CookieJar()
+        self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar))
+
+    def tearDown(self):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        for k, v in self.env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        self.tmp.cleanup()
+
+    def get(self, path):
+        try:
+            with self.opener.open(self.base + path, timeout=10) as r:
+                return r.status, r.geturl(), r.read().decode()
+        except urllib.error.HTTPError as e:
+            return e.code, e.geturl(), e.read().decode()
+
+    def post(self, path, **fields):
+        data = urllib.parse.urlencode(fields).encode()
+        try:
+            with self.opener.open(self.base + path, data=data, timeout=30) as r:
+                return r.status, r.geturl(), r.read().decode()
+        except urllib.error.HTTPError as e:
+            return e.code, e.geturl(), e.read().decode()
+
+    def login(self):
+        self.post("/login", password="password1", password2="password1")
+
+
+class TestAuth(WebCase):
+    def test_everything_needs_a_session(self):
+        for path in ("/watchdash", "/report", "/setup", "/api/samples?from=0&to=1", "/export"):
+            status, url, _ = self.get(path)
+            self.assertTrue(url.endswith("/login"), path)
+
+    def test_first_visit_chooses_the_password_then_login_works(self):
+        _, _, body = self.get("/login")
+        self.assertIn("Conferma password", body)
+        status, url, _ = self.post("/login", password="short", password2="short")
+        self.assertEqual(status, 400)
+        status, url, _ = self.post("/login", password="password1", password2="password1")
+        self.assertTrue(url.endswith("/setup"))
+        self.get("/logout")
+        status, _, _ = self.post("/login", password="wrong-one")
+        self.assertEqual(status, 401)
+        status, url, _ = self.post("/login", password="password1")
+        self.assertTrue(url.endswith("/watchdash"))
+
+    def test_admin_file_is_private(self):
+        self.login()
+        self.assertEqual(os.stat(os.path.join(config.config_dir(), "admin.json")).st_mode & 0o777, 0o600)
+
+
+class TestLoginThrottle(WebCase):
+    def test_throttle_counts_before_checking_per_client_and_overall(self):
+        now = [0.0]
+        t = server.LoginThrottle(clock=lambda: now[0])
+        self.assertEqual([t.attempt("10.0.0.1") for _ in range(6)], [True] * 5 + [False])
+        self.assertTrue(t.attempt("10.0.0.2"))
+        t.succeeded("10.0.0.2")
+        now[0] = 61
+        self.assertTrue(t.attempt("10.0.0.1"))
+        for i in range(t.GLOBAL - 1):
+            t.attempt(f"10.0.1.{i % 250}.{i}")
+        self.assertFalse(t.attempt("10.0.0.3"))
+
+    def test_parallel_attempts_cannot_exceed_the_limit(self):
+        t = server.LoginThrottle()
+        results = []
+        threads = [threading.Thread(target=lambda: results.append(t.attempt("10.0.0.9"))) for _ in range(50)]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+        self.assertEqual(results.count(True), t.PER_CLIENT)
+
+    def test_sixth_wrong_password_is_refused_without_checking(self):
+        from unittest import mock
+        self.login()
+        self.get("/logout")
+        throttle = server.LoginThrottle()
+        with mock.patch.object(server, "_login_throttle", throttle), mock.patch.object(server.time, "sleep"):
+            for _ in range(5):
+                self.assertEqual(self.post("/login", password="wrong-one")[0], 401)
+            status, _, body = self.post("/login", password="password1")
+            self.assertEqual(status, 429)
+            self.assertIn("Troppi tentativi", body)
+
+
+class TestPages(WebCase):
+    def setUp(self):
+        super().setUp()
+        config.save_chain({"version": 1, "nodes": [{"id": "router", "label": "Router <prova>", "ip": "127.0.0.1"}]})
+        engine = Engine(async_mail=False)
+        ts = __import__("time").time() - 600
+        for i in range(30):
+            down = 10 <= i < 14
+            m = dict(gw_loss=0.0, gw_rtt=1.0, anchors={"a": {"ip": "192.0.2.1", "loss": 100.0 if down else 0.0, "rtt": None if down else 20.0}},
+                     internet_loss=100.0 if down else 0.0, internet_rtt=None if down else 20.0,
+                     dns_local_ok=not down, dns_local_ms=3.0, dns_ext_ok=not down, dns_ext_ms=8.0)
+            engine.step(ts=ts + i * 5, measured=(m, {}))
+        engine.con.close()
+        self.login()
+
+    def test_pages_render_with_data_and_no_leftover_placeholders(self):
+        for path in ("/watchdash", "/report", "/report?period=day", "/report?period=year", "/setup"):
+            status, _, body = self.get(path)
+            self.assertEqual(status, 200, path)
+            self.assertNotRegex(body, r"__[A-Z_]+__", path)
+            self.assertNotIn("FritzBox", body)
+        _, _, body = self.get("/watchdash")
+        data = json.loads(re.search(r"const DATA = (\{.*?\});\n", body, re.S).group(1))
+        self.assertEqual([i["cause"] for i in data["incidents"]], ["UPSTREAM_OUTAGE"])
+        self.assertIn("Router <prova> (127.0.0.1)", data["source"]["chain"])
+        self.assertFalse(data["has_cellular"])
+
+    def test_chain_label_is_escaped_in_settings(self):
+        _, _, body = self.get("/setup")
+        self.assertIn("Router &lt;prova&gt;", body)
+        self.assertNotIn("Router <prova>", body)
+
+    def test_samples_api_and_export(self):
+        import time
+        status, _, body = self.get(f"/api/samples?from={time.time() - 3600}&to={time.time()}")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(json.loads(body)), 30)
+        status, _, body = self.get("/export?table=samples")
+        self.assertEqual(status, 200)
+        self.assertTrue(body.startswith("ts,gw_loss"))
+
+
+class TestSettings(WebCase):
+    def setUp(self):
+        super().setUp()
+        self.login()
+
+    def test_mail_password_goes_to_secrets_and_is_never_shown(self):
+        status, _, body = self.post("/setup", action="save_mail", enabled="1", to="io@example.org", transport="smtp",
+                                    smtp_host="smtp.example.org",
+                                    smtp_port="587", smtp_security="starttls", smtp_username="io",
+                                    smtp_password="segreto-123", dashboard_url="")
+        self.assertIn("Notifiche salvate", body)
+        self.assertNotIn("segreto-123", body)
+        with open(config.config_file()) as f:
+            self.assertNotIn("segreto-123", f.read())
+        self.assertEqual(config.load_secrets()["mail"]["password"], "segreto-123")
+        self.assertEqual(config.load()["mail"]["smtp"]["host"], "smtp.example.org")
+        # saving again with an empty password keeps the stored one
+        self.post("/setup", action="save_mail", enabled="1", to="io@example.org", transport="smtp",
+                  smtp_host="smtp.example.org", smtp_port="587",
+                  smtp_security="starttls", smtp_username="io", smtp_password="", dashboard_url="")
+        self.assertEqual(config.load_secrets()["mail"]["password"], "segreto-123")
+
+    def test_stored_password_never_goes_to_a_changed_server(self):
+        from unittest import mock
+        from dobermann import notify
+        base = dict(action="save_mail", enabled="1", to="io@example.org", transport="smtp", smtp_host="smtp.example.org",
+                    smtp_port="587", smtp_security="starttls", smtp_username="io", dashboard_url="")
+        self.post("/setup", **dict(base, smtp_password="segreto-123"))
+        with mock.patch.object(notify, "deliver", return_value=(True, None)) as deliver:
+            status, _, body = self.post("/setup", **dict(base, action="test_mail", smtp_host="evil.example.net", smtp_password=""))
+            self.assertEqual(status, 400)
+            self.assertIn("riscrivi la password", body)
+            deliver.assert_not_called()
+            status, _, body = self.post("/setup", **dict(base, smtp_host="evil.example.net", smtp_password=""))
+            self.assertEqual(status, 400)
+            self.assertEqual(config.load()["mail"]["smtp"]["host"], "smtp.example.org")
+            # same server and user: the stored password is used
+            self.post("/setup", **dict(base, action="test_mail", smtp_password=""))
+            self.assertEqual(deliver.call_args[0][1]["mail"]["password"], "segreto-123")
+            # a new server with its own password is fine
+            self.post("/setup", **dict(base, action="test_mail", smtp_host="smtp.other.org", smtp_password="altra"))
+            self.assertEqual(deliver.call_args[0][1]["mail"]["password"], "altra")
+
+    def test_test_mail_shows_why_it_failed(self):
+        from unittest import mock
+        from dobermann import notify
+        with mock.patch.object(notify, "deliver", return_value=(False, "il server ha chiuso <la> connessione")), \
+                mock.patch("builtins.print"):
+            status, _, body = self.post("/setup", action="test_mail", enabled="1", to="io@example.org", transport="relay",
+                                        smtp_host="smtp.example.org", smtp_port="587", smtp_security="starttls",
+                                        smtp_username="io", smtp_password="", dashboard_url="")
+        self.assertIn("Invio fallito: il server ha chiuso &lt;la&gt; connessione", body)
+
+    def test_relay_save_writes_nullmailer_remotes(self):
+        from unittest import mock
+        from dobermann import relay
+        remotes = os.path.join(self.tmp.name, "remotes")
+        with mock.patch.object(relay, "detect", return_value="nullmailer"), \
+                mock.patch.object(relay, "NULLMAILER_REMOTES", remotes):
+            status, _, body = self.post("/setup", action="save_mail", enabled="1", to="io@example.org", transport="relay",
+                                        smtp_host="smtp.example.org", smtp_port="465", smtp_security="ssl",
+                                        smtp_username="io@example.org", smtp_password="pw-1", dashboard_url="")
+            self.assertIn("nullmailer configurato", body)
+            with open(remotes) as f:
+                self.assertEqual(f.read(), "smtp.example.org smtp --port=465 --ssl --user=io@example.org --pass=pw-1\n")
+            status, _, body = self.post("/setup", action="save_mail", enabled="1", to="io@example.org", transport="relay",
+                                        smtp_host="smtp.example.org", smtp_port="465", smtp_security="ssl",
+                                        smtp_username="io@example.org", smtp_password="con spazi", dashboard_url="")
+            self.assertEqual(status, 400)
+            self.assertIn("spazi", body)
+        self.assertEqual(config.load_secrets()["mail"]["password"], "pw-1")   # the refused save changed nothing
+
+    def test_alert_rules_save_and_validation(self):
+        fields = dict(action="save_alerts", mode_outage="after", after_outage="3", mode_ip_renewal="never", after_ip_renewal="2",
+                      mode_slow="summary", after_slow="5", mode_legacy_rat="summary", after_legacy_rat="5",
+                      mode_dns="immediate", after_dns="5", summary_frequency="daily", summary_weekday="2", summary_hour="7")
+        status, _, body = self.post("/setup", **fields)
+        self.assertIn("Regole degli avvisi salvate", body)
+        m = config.load()["mail"]
+        self.assertEqual(m["rules"]["outage"], {"mode": "after", "after_min": 3})
+        self.assertEqual(m["summary"], {"frequency": "daily", "weekday": 2, "hour": 7, "send_if_quiet": False})
+        self.assertEqual(config.load()["mail"]["transport"], "relay")      # the rest of the mail settings untouched
+        status, _, _ = self.post("/setup", **dict(fields, mode_dns="sempre"))
+        self.assertEqual(status, 400)
+        _, _, body = self.get("/setup")
+        self.assertIn('<option value="never" selected>Mai</option>', body)
+
+    def test_measure_validation_is_all_or_nothing(self):
+        status, _, body = self.post("/setup", action="save_measure", interval_s="5", anchors="a,1.1.1.1\nb,nope",
+                                    dns_local="", dns_external="1.1.1.1", high_latency_ms="150", packet_loss_pct="34",
+                                    internet_down_pct="66", confirm_samples="2", retention_days="30")
+        self.assertEqual(status, 400)
+        self.assertIn("ancora non valida", body)
+        self.assertFalse(os.path.exists(config.config_file()))
+        status, _, body = self.post("/setup", action="save_measure", interval_s="10", anchors="a,1.1.1.1\nb,9.9.9.9",
+                                    dns_local="", dns_external="1.1.1.1", high_latency_ms="200", packet_loss_pct="34",
+                                    internet_down_pct="66", confirm_samples="2", retention_days="30")
+        self.assertEqual(status, 200)
+        cfg = config.load()
+        self.assertEqual((cfg["interval_s"], cfg["thresholds"]["high_latency_ms"]), (10, 200))
+        self.assertIsNone(cfg["dns"]["local"])
+
+    def test_chain_edit_and_device_password(self):
+        config.save_chain({"version": 1, "nodes": [
+            {"id": "router", "label": "R", "ip": "127.0.0.1"},
+            {"id": "modem", "label": "M", "ip": "127.0.0.2", "adapter": "zte_goform", "options": {}}]})
+        _, _, body = self.get("/setup")
+        self.assertIn('name="pw_modem"', body)          # only the device that takes a password gets the field
+        self.assertNotIn('name="pw_router"', body)
+        self.post("/setup", action="save_chain", label_router="Il mio router", label_modem="M", pw_modem="zte-pw")
+        self.assertEqual(config.load_chain()["nodes"][0]["label"], "Il mio router")
+        self.assertEqual(config.load_secrets()["devices"]["modem"]["password"], "zte-pw")
+        self.post("/setup", action="save_chain", label_router="Il mio router", remove_modem="1")
+        self.assertEqual([n["id"] for n in config.load_chain()["nodes"]], ["router"])
+        self.assertNotIn("modem", config.load_secrets()["devices"])
+
+    def test_detect_drops_a_password_whose_device_moved(self):
+        from unittest import mock
+        from dobermann import discover
+        config.save_chain({"version": 1, "nodes": [{"id": "modem", "label": "M", "ip": "192.168.2.1"}]})
+        config.save_secrets({"devices": {"modem": {"password": "old"}}})
+        new = {"version": 1, "nodes": [{"id": "router", "label": "R", "ip": "192.168.1.1"},
+                                       {"id": "modem", "label": "Altro", "ip": "192.168.3.1"}]}
+        with mock.patch.object(discover, "propose_chain", return_value=(new, ["nota"])):
+            _, _, body = self.post("/setup", action="detect", extra="192.168.3.1")
+        self.assertIn("Catena rilevata", body)
+        self.assertEqual(config.load_chain(), new)
+        self.assertNotIn("modem", config.load_secrets().get("devices", {}))
+
+    def test_interval_api(self):
+        req = urllib.request.Request(self.base + "/api/interval", data=json.dumps({"interval": 12}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        with self.opener.open(req) as r:
+            self.assertEqual(json.load(r)["interval"], 12)
+        self.assertEqual(config.load()["interval_s"], 12)
+
+    def test_password_change_keeps_this_browser_logged_in(self):
+        self.post("/setup", action="password", new_password="nuova-pass", new_password2="nuova-pass")
+        status, url, _ = self.get("/setup")
+        self.assertTrue(url.endswith("/setup"))
+
+
+if __name__ == "__main__":
+    unittest.main()

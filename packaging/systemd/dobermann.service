@@ -1,0 +1,23 @@
+[Unit]
+Description=dobermann: sorveglianza della connessione a internet
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dobermann
+Group=dobermann
+Environment=DOBERMANN_CONFIG_DIR=@CONFIG_DIR@
+Environment=DOBERMANN_STATE_DIR=@STATE_DIR@
+WorkingDirectory=@CODE_DIR@
+ExecStart=/usr/bin/python3 -m dobermann run
+# ping falls back to a raw socket where ICMP datagram sockets are not allowed for this group
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+NoNewPrivileges=yes
+Restart=always
+RestartSec=5
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

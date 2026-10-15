@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dobermann — Accesso</title>
+<style>
+:root{
+  color-scheme: light;
+  --surface-1: #fcfcfb; --surface-2: #f9f9f7;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+  --border: rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --surface-1: #1a1a19; --surface-2: #0d0d0d;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --border: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --surface-1: #1a1a19; --surface-2: #0d0d0d;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+  --border: rgba(255,255,255,0.10);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+}
+html{ background: var(--surface-2); }
+body{
+  background: var(--surface-2); margin: 0; color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+}
+.card{
+  max-width: 360px; width: 100%; margin: 20px; background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 12px; padding: 28px;
+  border-left: 3px solid var(--s1);
+}
+h1{ font-size: 18px; margin: 0 0 4px; }
+.subtitle{ color: var(--text-secondary); font-size: 13px; margin: 0 0 20px; line-height: 1.5; }
+label{ display: block; font-size: 12px; color: var(--text-muted); margin: 14px 0 4px; }
+input{
+  width: 100%; box-sizing: border-box; padding: 9px 10px; font-size: 14px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text-primary);
+}
+button{
+  width: 100%; margin-top: 20px; padding: 10px; font-size: 14px; font-weight: 600;
+  border-radius: 8px; border: none; background: var(--s1); color: white; cursor: pointer;
+}
+button:hover{ opacity: 0.9; }
+.error{ margin: 14px 0 0; padding: 10px 12px; border-radius: 8px; font-size: 13px;
+  background: color-mix(in srgb, var(--s2) 15%, var(--surface-1)); color: var(--s2); }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>__TITLE__</h1>
+  <p class="subtitle">__SUBTITLE__</p>
+  __ERROR__
+  <form method="post" action="/login">
+    <label for="password">__PASSWORD_LABEL__</label>
+    <input type="password" id="password" name="password" required autofocus minlength="8">
+    __PASSWORD2_FIELD__
+    <button type="submit">__BUTTON_LABEL__</button>
+  </form>
+</div>
+</body>
+</html>
