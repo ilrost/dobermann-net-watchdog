@@ -421,7 +421,7 @@ function barChartByBucket(container, data, opts){
       let html = `<b>${opts.getLabel(d)}</b><br>` + _t('{n} incidenti · {d} in tutto', {n: d.count, d: fmtDur(d.total_seconds)});
       if (events.length) {
         html += '<br><br>' + events.slice(0, 6).map(ev => {
-          const meta = CAUSE_META[ev.cause] || { label: ev.cause };
+          const meta = CAUSE_META[ev.cause] || { label: escHtml(ev.cause) };
           return `${fmtDate(ev.start_ts)} — ${meta.label} (${fmtDur(ev.duration_s)})`;
         }).join('<br>');
         if (events.length > 6) html += '<br>' + _t('+{n} altri', {n: events.length - 6});
@@ -507,7 +507,7 @@ function pickIncidentBucket(){
 function dayRange(dayStr){
   const [y,m,dd] = dayStr.split('-').map(Number);
   const start = new Date(y, m-1, dd).getTime()/1000;
-  return [start, start + 86400];
+  return [start, new Date(y, m-1, dd+1).getTime()/1000];   // 23 or 25 h when the clock changes
 }
 function monthRange(monthStr){
   const [y,m] = monthStr.split('-').map(Number);
@@ -523,6 +523,10 @@ function barChartCause(container, byCause){
     return;
   }
   const order = Object.keys(CAUSE_META).filter(k => keys.includes(k));
+  if (!order.length) {      // only causes this page does not know: nothing it can draw
+    container.innerHTML = '<div class="empty">' + _t('Dati insufficienti per il grafico.') + '</div>';
+    return;
+  }
   const W = 1020, rowH = 34, padL = 190, padR = 60, padT = 6;
   const H = padT*2 + order.length*rowH;
   const max = Math.max(...order.map(k => byCause[k].count));
@@ -748,7 +752,7 @@ function lineChart(container, series, opts){
     if (opts.showIncidents) {
       const inc = DATA.incidents.find(i => { const [s0,s1] = incidentSpan(i); return hoverTs >= s0 && hoverTs <= s1; });
       if (inc) {
-        const meta = CAUSE_META[inc.cause] || { label: inc.cause };
+        const meta = CAUSE_META[inc.cause] || { label: escHtml(inc.cause) };
         html += `<br><span style="color:var(--critical)">⬤ ${meta.label} — ${fmtDur(inc.duration_s)}</span>`;
       }
     }
@@ -898,6 +902,7 @@ const TIMELINE_MODES = {
       yDomain:[-120,-70], summarize: avgSummary },
   ] },
 };
+if (!DATA.has_cellular) delete TIMELINE_MODES.signal;   // a ?modes=signal link must not draw empty series
 function avgSummary(vals){
   const n = vals.filter(v => v != null);
   return { word: _t('media'), value: n.length ? n.reduce((a,b) => a+b, 0)/n.length : null };
@@ -910,7 +915,7 @@ const RANK_OPACITY = [1, 0.55, 0.3]; // 1st clicked = full strength, 2nd fainter
 // order = click priority: first clicked is most prominent (drawn on top, full
 // opacity, solid button); each one after is progressively fainter, both on the
 // chart and on its own button, so it's obvious what's foreground vs. background.
-let selectionOrder = (urlParams.get('modes') || 'bw').split(',').filter(k => TIMELINE_MODES[k]);
+let selectionOrder = (urlParams.get('modes') || 'bw').split(',').filter(k => Object.prototype.hasOwnProperty.call(TIMELINE_MODES, k));
 if (!selectionOrder.length) selectionOrder = ['bw'];
 let showIncidents = urlParams.get('inc') !== '0';
 let showIpChanges = urlParams.get('ipc') !== '0';

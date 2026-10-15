@@ -49,8 +49,8 @@ class Node:
 
 class Chain:
     def __init__(self, chain_spec, secrets=None):
-        devices = (secrets or {}).get("devices", {})
-        self.nodes = [Node(n, devices) for n in (chain_spec or {}).get("nodes", [])]
+        devices = (secrets or {}).get("devices") or {}
+        self.nodes = [Node(n, devices) for n in ((chain_spec or {}).get("nodes") or [])]
         if not self.nodes:
             gw = probes.default_gateway()
             if gw:
@@ -99,7 +99,13 @@ class Chain:
 
     def link_description(self):
         r = self.radio_uplink()
-        return _("radio (rete mobile, tramite {v})", v=r.label) if r else _("cablata (fibra, DSL o cavo)")
+        if r:
+            return _("radio (rete mobile, tramite {v})", v=r.label)
+        up = self.uplink()
+        if up is None or up.adapter is None:
+            # nothing in the chain can be read: the kind of line is not known, not "wired"
+            return _("non determinata (nessun apparato della catena si lascia leggere)")
+        return _("cablata (fibra, DSL o cavo)")
 
     def cellular_nodes(self):
         """Devices whose radio state explains the line's events: only the radio uplink. A radio device

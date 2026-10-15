@@ -588,6 +588,7 @@
  "non annunciare nessun nome locale": "no anunciar ningún nombre local",
  "non chiede conferma": "no pide confirmación",
  "non configurata": "sin configurar",
+ "non determinata (nessun apparato della catena si lascia leggere)": "no determinada (ningún equipo de la cadena se deja leer)",
  "non posso scrivere la configurazione di nullmailer ({v}): rilancia il wizard come root": "no puedo escribir la configuración de nullmailer ({v}): vuelve a ejecutar el asistente como root",
  "non riconosciuta": "no reconocida",
  "non riesco a rifare il certificato HTTPS: {v}": "no consigo rehacer el certificado HTTPS: {v}",

@@ -588,6 +588,7 @@
  "non annunciare nessun nome locale": "keinen lokalen Namen bekanntgeben",
  "non chiede conferma": "fragt nicht nach",
  "non configurata": "nicht eingerichtet",
+ "non determinata (nessun apparato della catena si lascia leggere)": "nicht bestimmt (kein Gerät der Kette lässt sich auslesen)",
  "non posso scrivere la configurazione di nullmailer ({v}): rilancia il wizard come root": "kann die Konfiguration von nullmailer nicht schreiben ({v}): starte den Assistenten erneut als root",
  "non riconosciuta": "nicht erkannt",
  "non riesco a rifare il certificato HTTPS: {v}": "kann das HTTPS-Zertifikat nicht neu erstellen: {v}",

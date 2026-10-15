@@ -20,6 +20,7 @@ the common name). It is a leaf certificate (CA:FALSE, serverAuth only), so trust
 not let it vouch for any other site. Stdlib only.
 """
 import argparse
+import fcntl
 import ipaddress
 import os
 import re
@@ -78,6 +79,24 @@ def san_entries(names):
 
 
 def generate(cert_path, key_path, sans, run=subprocess.run):
+    """Key and certificate replaced as a pair, one generation at a time (the installer as root and the
+    panel on an address change could otherwise cross their files)."""
+    os.makedirs(os.path.dirname(cert_path), exist_ok=True)
+    fd = os.open(os.path.join(os.path.dirname(cert_path), ".tls.lock"), os.O_RDWR | os.O_CREAT, 0o600)
+    if os.geteuid() == 0:      # made by root: the unprivileged panel must still be able to take it
+        st = os.stat(os.path.dirname(cert_path))
+        try:
+            os.fchown(fd, st.st_uid, st.st_gid)
+        except OSError:
+            pass
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        _generate(cert_path, key_path, sans, run)
+    finally:
+        os.close(fd)
+
+
+def _generate(cert_path, key_path, sans, run):
     openssl = shutil.which("openssl")
     if not openssl:
         raise CertError(_("manca `openssl` (pacchetto openssl): serve per creare il certificato"))
@@ -87,7 +106,8 @@ def generate(cert_path, key_path, sans, run=subprocess.run):
     tmp_dir = tempfile.mkdtemp(dir=os.path.dirname(cert_path), prefix=".tls-")
     try:
         tmp_key, tmp_crt = os.path.join(tmp_dir, "key"), os.path.join(tmp_dir, "crt")
-        res = run([openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-sha256", "-days", str(DAYS),
+        try:
+            res = run([openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-sha256", "-days", str(DAYS),
                    "-keyout", tmp_key, "-out", tmp_crt, "-subj", f"/CN={cn}/O=dobermann",
                    "-addext", "subjectAltName=" + ",".join(sans),
                    # a LEAF, not an authority: `openssl req -x509` defaults to CA:TRUE, and a certificate a user
@@ -96,8 +116,11 @@ def generate(cert_path, key_path, sans, run=subprocess.run):
                    "-addext", "keyUsage=critical,digitalSignature,keyEncipherment",
                    "-addext", "extendedKeyUsage=serverAuth"],
                   capture_output=True, text=True, timeout=60)
+        except subprocess.SubprocessError as e:
+            raise CertError(_("openssl non è riuscito: {v}", v=e)) from None
         if res.returncode != 0:
-            raise CertError(_("openssl non è riuscito: {v}", v=(res.stderr or res.stdout).strip().splitlines()[-1]))
+            lines = (res.stderr or res.stdout or "").strip().splitlines()
+            raise CertError(_("openssl non è riuscito: {v}", v=lines[-1] if lines else f"exit {res.returncode}"))
         os.chmod(tmp_key, 0o600)
         os.chmod(tmp_crt, 0o644)
         owner = os.stat(os.path.dirname(cert_path))

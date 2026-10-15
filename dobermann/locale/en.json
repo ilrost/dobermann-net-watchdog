@@ -588,6 +588,7 @@
  "non annunciare nessun nome locale": "do not announce any local name",
  "non chiede conferma": "do not ask for confirmation",
  "non configurata": "not configured",
+ "non determinata (nessun apparato della catena si lascia leggere)": "not determined (no device of the chain can be read)",
  "non posso scrivere la configurazione di nullmailer ({v}): rilancia il wizard come root": "cannot write the nullmailer configuration ({v}): run the wizard again as root",
  "non riconosciuta": "not recognised",
  "non riesco a rifare il certificato HTTPS: {v}": "cannot remake the HTTPS certificate: {v}",
