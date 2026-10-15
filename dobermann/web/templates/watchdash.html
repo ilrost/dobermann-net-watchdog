@@ -332,6 +332,13 @@ function renderTiles(){
     </div>`).join('');
 }
 
+// charts are drawn at the width they are shown at: scaled down from a fixed 1020 they were unreadable
+// on a phone, with empty space around them
+function chartWidth(el){
+  const w = Math.round(el.getBoundingClientRect().width);
+  return w > 0 ? Math.max(320, Math.min(1020, w)) : 1020;
+}
+
 function svgEl(tag, attrs){
   const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
   for (const k in attrs) el.setAttribute(k, attrs[k]);
@@ -351,20 +358,20 @@ function barChartByBucket(container, data, opts){
     container.innerHTML = '<div class="empty">' + _t('Nessun incidente registrato in questa finestra: buon segno, oppure serve più tempo di raccolta.') + '</div>';
     return;
   }
-  const W = 1020, H = 220, padL = 34, padR = 10, padT = 10, padB = 26;
+  const W = chartWidth(container), H = 220, padL = 34, padR = 10, padT = 10, padB = 26;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const max = Math.max(...data.map(d => d.count), 1);
   const bw = plotW / data.length;
   const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', height: H });
   const tip = makeTooltip(container);
-  const tickStride = Math.max(1, Math.ceil(data.length / 24));
+  const tickStride = Math.max(1, Math.ceil(data.length / Math.max(6, Math.floor(W / 38))));
 
   [0,0.5,1].forEach(f => {
     const y = padT + plotH * (1-f);
     svg.appendChild(svgEl('line', { x1: padL, x2: W-padR, y1: y, y2: y, class: 'grid-line' }));
     const t = svgEl('text', { x: padL-6, y: y+3, 'text-anchor': 'end' });
-    t.textContent = Math.round(max*f);
-    svg.appendChild(t);
+    // counts are whole: a half-way tick is labelled only when it is a whole number (max 1 gave "0, 1, 1")
+    if (Number.isInteger(max*f)) { t.textContent = max*f; svg.appendChild(t); }
   });
   svg.appendChild(svgEl('line', { x1: padL, x2: W-padR, y1: padT+plotH, y2: padT+plotH, class:'axis-line' }));
 
@@ -463,7 +470,11 @@ function barChartCause(container, byCause){
     container.innerHTML = '<div class="empty">' + _t('Dati insufficienti per il grafico.') + '</div>';
     return;
   }
-  const W = 1020, rowH = 34, padL = 190, padR = 60, padT = 6;
+  // room on the left for the longest label of this chart (they differ in length by language)
+  const longest = Math.max(...order.map(k => CAUSE_META[k].label.length));
+  const W = chartWidth(container), rowH = 34, padR = 40, padT = 6;
+  const padL = Math.min(Math.round(W * 0.5), 420, Math.max(150, Math.round(longest * 6.4) + 20));
+  const fit = Math.floor((padL - 16) / 6.4);   // characters that fit left of the bars
   const H = padT*2 + order.length*rowH;
   const max = Math.max(...order.map(k => byCause[k].count));
   const svg = svgEl('svg', { viewBox:`0 0 ${W} ${H}`, width:'100%', height: H });
@@ -474,7 +485,8 @@ function barChartCause(container, byCause){
     const y = padT + i*rowH;
     const w = (val/max) * (W - padL - padR);
     const label = svgEl('text', { x: padL-10, y: y+rowH/2+3, 'text-anchor':'end' });
-    label.textContent = meta.label;
+    label.textContent = meta.label.length > fit ? meta.label.slice(0, fit - 1) + '…' : meta.label;
+    const full = svgEl('title', {}); full.textContent = meta.label; label.appendChild(full);
     label.setAttribute('fill', 'var(--text-secondary)');
     svg.appendChild(label);
     const rect = svgEl('rect', { x: padL, y: y+6, width: Math.max(w,2), height: rowH-14, rx: 4, fill: meta.color });
@@ -547,7 +559,7 @@ function lineChart(container, series, opts){
   }
   const fullXs = fullTl.map(d => d.ts);
   const fullMin = Math.min(...fullXs), fullMax = Math.max(...fullXs);
-  const W = 1020, H = 220, padL = 14, padR = 10, padT = 10, padB = 22;
+  const W = chartWidth(container), H = 220, padL = 14, padR = 10, padT = 10, padB = 22;
   const plotW = W-padL-padR, plotH = H-padT-padB;
   const xMin = range ? range[0] : fullMin;
   const xMax = range ? range[1] : fullMax;
@@ -603,7 +615,7 @@ function lineChart(container, series, opts){
     svg.appendChild(svgEl('line', { x1:padL, x2:W-padR, y1:y, y2:y, class:'grid-line' }));
   });
   svg.appendChild(svgEl('line', { x1:padL, x2:W-padR, y1:padT+plotH, y2:padT+plotH, class:'axis-line' }));
-  niceTimeTicks(xMin, xMax, 7).forEach(({ts, showDate}) => {
+  niceTimeTicks(xMin, xMax, Math.max(3, Math.min(7, Math.floor(W / 140)))).forEach(({ts, showDate}) => {
     const x = xOf(ts);
     const t = svgEl('text', { x, y: H-6, 'text-anchor':'middle' });
     const dt = new Date(ts*1000);
