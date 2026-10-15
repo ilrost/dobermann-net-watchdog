@@ -703,6 +703,7 @@
  "{a} e {b}": "{a} und {b}",
  "{a} e {s} s": "{a} und {s} s",
  "{a} o {b} esiste già: usa --force per sostituirli": "{a} oder {b} existiert schon: nutze --force, um sie zu ersetzen",
+ "{e}\nIl CT {v} è stato creato ma l'installazione non è finita. Per toglierlo: pct stop {v} && pct destroy {v} --purge": "{e}\nCT {v} wurde angelegt, aber die Installation ist nicht fertig. Zum Entfernen: pct stop {v} && pct destroy {v} --purge",
  "{n} cambi nel periodo": "{n} Wechsel im Zeitraum",
  "{n} cambi nella finestra": "{n} Wechsel im Fenster",
  "{n} campioni": "{n} Messungen",

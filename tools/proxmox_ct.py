@@ -28,6 +28,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 
 CODE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -105,6 +106,16 @@ def storages():
     return [ln.split()[0] for ln in text.splitlines()[1:] if ln.strip() and ln.split()[2:3] == ["active"]]
 
 
+def template_storage():
+    """A storage that holds CT templates: 'local' when it does, else the first that does."""
+    try:
+        text = _out(["pvesm", "status", "--content", "vztmpl"])
+    except CtError:
+        return "local"
+    names = [ln.split()[0] for ln in text.splitlines()[1:] if ln.strip() and ln.split()[2:3] == ["active"]]
+    return "local" if "local" in names or not names else names[0]
+
+
 def next_id():
     return int(_out(["pvesh", "get", "/cluster/nextid"]).strip())
 
@@ -161,8 +172,8 @@ def install_code(ctid, out, install_args=(), password=None):
     """Copies the code into the CT and runs tools/install.py there. Returns what it reported (its RESULT
     line). The password goes through standard input, never on a command line."""
     data = code_tarball()
-    tmp = f"/tmp/dobermann-{os.getpid()}.tar.gz"
-    with open(tmp, "wb") as f:
+    fd, tmp = tempfile.mkstemp(suffix=".tar.gz", prefix="dobermann-")    # 0600, never an existing file
+    with os.fdopen(fd, "wb") as f:
         f.write(data)
     try:
         _out(["pct", "push", str(ctid), tmp, "/root/dobermann.tar.gz"])
@@ -253,6 +264,7 @@ def run(args, out=print, password=None):
     if str(args.id) in existing:
         raise CtError(_("il CT {v} esiste già: scegli un altro --id, o usa --update {v}", v=args.id))
 
+    args.template_storage = args.template_storage or template_storage()
     local = _out(["pveam", "list", args.template_storage])
     template_name = args.template or newest_template(local)
     have = bool(template_name) and template_name in local
@@ -278,10 +290,15 @@ def run(args, out=print, password=None):
     for cmd in create_plan(args, template):
         _out(cmd)
     out("  ok  " + _("CT {v} creato e avviato", v=args.id))
-    wait_for_network(args.id)
-    install_packages(args.id, out)
-    fixed = None if args.ip == "dhcp" else args.ip.split("/")[0]
-    result = install_code(args.id, out, install_args(args, fixed), password)
+    try:
+        wait_for_network(args.id)
+        install_packages(args.id, out)
+        fixed = None if args.ip == "dhcp" else args.ip.split("/")[0]
+        result = install_code(args.id, out, install_args(args, fixed), password)
+    except CtError as e:
+        # the CT exists, starts with the host and holds its number: say so, and how to remove it
+        raise CtError(_("{e}\nIl CT {v} è stato creato ma l'installazione non è finita. Per toglierlo: "
+                        "pct stop {v} && pct destroy {v} --purge", e=e, v=args.id)) from None
     return dict(result, ctid=args.id, address=fixed or ct_address(args.id))
 
 
@@ -294,7 +311,7 @@ def main(argv=None):
     ap.add_argument("--hostname", default="dobermann")
     ap.add_argument("--bridge", default="vmbr0")
     ap.add_argument("--storage", default="local-lvm", help=_("dove sta il disco del CT"))
-    ap.add_argument("--template-storage", default="local", help=_("dove stanno i modelli dei CT"))
+    ap.add_argument("--template-storage", help=_("dove stanno i modelli dei CT"))
     ap.add_argument("--template", help=_("nome del modello da usare (predefinito: il Debian più recente già sull'host)"))
     ap.add_argument("--disk", type=int, default=4, help="GB")
     ap.add_argument("--memory", type=int, default=256, help="MB")

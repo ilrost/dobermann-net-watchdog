@@ -72,6 +72,9 @@ def _window_report(since, until, fill_until=None):
     interval = _interval(cfg)
     retention = cfg["retention_days"]
     raw_start = min(max(since, now - retention * 86400), until)
+    if raw_start > since:
+        # the hour the raw samples begin in is summed whole by its roll-up: the raw part starts after it
+        raw_start = min(until, -(-raw_start // 3600) * 3600)
 
     con = _connect()
     samples = con.execute("SELECT * FROM samples WHERE ts >= ? AND ts < ? ORDER BY ts", (raw_start, until)).fetchall()
@@ -193,8 +196,10 @@ def _window_report(since, until, fill_until=None):
 
 
 def _day_bounds(day):
+    """Local midnight to the next local midnight: 23 or 25 hours on the days the clock changes."""
     start = datetime(day.year, day.month, day.day).timestamp()
-    return start, start + 86400
+    nxt = day + timedelta(days=1)
+    return start, datetime(nxt.year, nxt.month, nxt.day).timestamp()
 
 
 def build_live_report():
@@ -275,7 +280,13 @@ EXPORT_QUERIES = {
 }
 
 
+MAX_EXPORT_SPAN_S = {"samples": 31 * 86400, "hourly": 10 * 366 * 86400}
+
+
 def export_rows(table, from_ts, to_ts):
+    """At most a month of raw samples per export (half a million rows at 5 s), so a wide range does not
+    fill the panel's memory; the hourly table any span."""
+    from_ts = max(from_ts, to_ts - MAX_EXPORT_SPAN_S[table])
     con = _connect()
     cur = con.execute(EXPORT_QUERIES[table], (from_ts, to_ts))
     cols = [d[0] for d in cur.description]

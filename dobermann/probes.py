@@ -4,6 +4,7 @@ ping and the DNS query have run for months of 5-second samples; the parsing note
 what that taught.
 """
 import os
+import random
 import re
 import socket
 import struct
@@ -60,18 +61,21 @@ def dns_query(server, domain, timeout=2):
     """A minimal A-record query over UDP. (ok, elapsed_ms or None)."""
     if not server:
         return False, None
-    txid = 0x1234
+    txid = random.getrandbits(16)
     header = struct.pack(">HHHHHH", txid, 0x0100, 1, 0, 0, 0)
-    qname = b"".join(bytes([len(p)]) + p.encode() for p in domain.split(".")) + b"\x00"
+    labels = [p for p in domain.rstrip(".").split(".") if p]     # "example.com." is example.com
+    qname = b"".join(bytes([len(p)]) + p.encode() for p in labels) + b"\x00"
     packet = header + qname + struct.pack(">HH", 1, 1)  # type A, class IN
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(timeout)
     t0 = time.monotonic()
     try:
-        s.sendto(packet, (server, 53))
-        data, _addr = s.recvfrom(512)
+        s.connect((server, 53))         # the kernel then drops datagrams from anyone else
+        s.send(packet)
+        data = s.recv(512)
         elapsed = (time.monotonic() - t0) * 1000
-        if len(data) >= 12 and data[0:2] == struct.pack(">H", txid):
+        # an answer (QR bit) to this question (random id), not something that just looks like one
+        if len(data) >= 12 and data[0:2] == struct.pack(">H", txid) and data[2] & 0x80:
             ancount = struct.unpack(">H", data[6:8])[0]
             rcode = struct.unpack(">H", data[2:4])[0] & 0x000F
             return (rcode == 0 and ancount > 0), elapsed

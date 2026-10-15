@@ -95,7 +95,8 @@ JS_CALL = re.compile(r"""\b_t\((?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)")""")
 
 
 def _js_unescape(s):
-    return re.sub(r"\\(.)", r"\1", s)
+    """The JavaScript string's value for the escapes a key may contain: quotes and the backslash."""
+    return re.sub(r"\\(['\"\\])", r"\1", s)
 
 
 def template_keys(tpl):

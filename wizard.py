@@ -97,7 +97,7 @@ class Console:
         if self.assume_yes:
             return default
         hint = _("S/n") if default else _("s/N")
-        yes_words = {"s", "si", "sì", "y", "yes", "j", "ja", "o", "oui"}
+        yes_words = {"s", "si", "sì", "sí", "y", "yes", "j", "ja", "o", "oui"}
         while True:
             answer = self.inp(f"{prompt} [{hint}]: ").strip().lower()
             if not answer:
@@ -106,6 +106,7 @@ class Console:
                 return True
             if answer in {"n", "no", "nein", "non"}:
                 return False
+            self.out("  " + hint)
 
     def password(self):
         """The panel password, or None to choose it later in the browser."""
@@ -218,9 +219,13 @@ def plan_container(con, args):
                                   check=lambda v: None if v.isdigit() else _("serve un numero")))
     con.say(_("Un indirizzo fisso è meglio: è dove aprirai il pannello. Scegline uno fuori dall'intervallo che il router "
               "assegna da solo (DHCP)."))
+    if args.ip and check_ct_ip(args.ip):
+        raise SystemExit(f"--ip {args.ip}: {check_ct_ip(args.ip)}")
     ip = args.ip or con.ask(_("Indirizzo del container (con la maschera) o dhcp"),
                             suggest_ct_address(host_iface) or "dhcp", check=check_ct_ip)
     gw = args.gw
+    if gw and not _is_ip(gw):
+        raise SystemExit(f"--gw {gw}: " + _("serve un indirizzo IP"))
     if ip != "dhcp" and not gw:
         gw = con.ask(_("Gateway"), proxmox_ct.host_gateway(bridge) or "",
                      check=lambda v: None if _is_ip(v) else _("serve un indirizzo IP"))
@@ -286,7 +291,8 @@ def execute(con, plan, args):
     if plan["mode"] == "ct":
         c = plan["ct"]
         ns = argparse.Namespace(id=c["id"], hostname="dobermann", cores=1, memory=256, storage=c["storage"],
-                                disk=4, bridge=c["bridge"], ip=c["ip"], gw=c["gw"], template_storage="local",
+                                disk=4, bridge=c["bridge"], ip=c["ip"], gw=c["gw"],
+                                template_storage=proxmox_ct.template_storage(),
                                 template=None, update=None, apply=True, language=plan["language"],
                                 http=not plan["https"], no_name=not plan["mdns"])
         result = proxmox_ct.run(ns, out=out, password=plan["password"])
@@ -388,6 +394,9 @@ def main(argv=None, con=None):
     con.section(_("Password del pannello"))
     if args.password_stdin:
         plan["password"] = sys.stdin.readline().rstrip("\n") or None
+        if plan["password"] is not None and len(plan["password"]) < 8:
+            con.say(_("la password deve avere almeno 8 caratteri"))
+            return 1
     else:
         plan["password"] = con.password()
 

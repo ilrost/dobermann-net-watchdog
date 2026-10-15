@@ -427,3 +427,13 @@ class TestRequestHardening(WebCase):
         except urllib.error.HTTPError as e:
             status = e.code
         self.assertEqual(status, 400)
+
+
+class TestReportBounds(unittest.TestCase):
+    def test_a_day_ends_at_the_next_local_midnight_also_when_the_clock_changes(self):
+        import datetime as dt
+        from dobermann.web import report
+        for day in (dt.date(2026, 3, 29), dt.date(2026, 10, 25), dt.date(2026, 6, 1)):
+            start, end = report._day_bounds(day)
+            self.assertEqual(dt.datetime.fromtimestamp(end).date(), day + dt.timedelta(days=1))
+            self.assertEqual(dt.datetime.fromtimestamp(end).hour, 0)

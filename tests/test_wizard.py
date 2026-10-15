@@ -63,6 +63,11 @@ class TestConsole(unittest.TestCase):
         self.assertEqual(con.choose(">", [("a", "A"), ("b", "B")], 0), "b")
         self.assertIn("1", s.text)
 
+    def test_spanish_yes_and_an_unknown_answer_is_explained(self):
+        s = Script(["boh", "sí"])
+        self.assertTrue(s.console().yes("?"))
+        self.assertTrue(any("[" not in str(x) and "/" in str(x) for x in s.screen))
+
     def test_password_can_be_skipped_and_must_match(self):
         self.assertIsNone(Script([], secrets=[""]).console().password())
         s = Script([], secrets=["short", "longenough", "different", "longenough", "longenough"])
