@@ -49,6 +49,13 @@ class TestInstall(unittest.TestCase):
             self.assertEqual(cfg, {"mail": {"to": "a@example.org"}, "language": "de",
                                    "dashboard_url": "https://192.0.2.5/watchdash"})
 
+    def test_a_broken_config_stops_with_a_message(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, "config.json"), "w") as f:
+                f.write("{broken")
+            with self.assertRaises(install.InstallError):
+                install.update_config(tmp, language="it")
+
     def test_only_local_names(self):
         self.assertTrue(install.valid_name("dobermann.local"))
         self.assertFalse(install.valid_name("dobermann.lan"))

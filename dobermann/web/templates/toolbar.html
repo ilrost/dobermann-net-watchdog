@@ -1,10 +1,12 @@
 <style>
 .tb{ display:flex; align-items:center; gap:4px; margin-left:auto; }
-.tb > a, .tb summary{ display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px;
+.tb > form{ margin:0; }
+.tb > a, .tb summary, .tb > form > button{ margin:0; padding:0; font:inherit; display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px;
   border-radius:8px; border:1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
   cursor:pointer; list-style:none; box-sizing:border-box; text-decoration:none; }
 .tb summary::-webkit-details-marker{ display:none; }
-.tb > a:hover, .tb summary:hover, .tb details[open] summary{ color: var(--text-primary); border-color: var(--text-muted); }
+.tb > form > button:hover{ opacity:1; }
+.tb > a:hover, .tb summary:hover, .tb > form > button:hover, .tb details[open] summary{ color: var(--text-primary); border-color: var(--text-muted); }
 .tb svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 .tb details{ position:relative; }
 .tb .menu{ position:absolute; right:0; top:40px; z-index:50; min-width:210px; padding:6px; border-radius:10px;
@@ -34,7 +36,7 @@
       <form method="post" action="/logout-all"><button type="submit">[[Esci da tutti i dispositivi]]</button></form>
     </div>
   </details>
-  <a href="/logout" title="[[Esci]]" aria-label="[[Esci]]"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></a>
+  <form method="post" action="/logout"><button type="submit" title="[[Esci]]" aria-label="[[Esci]]"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button></form>
 </nav>
 <script>
 // one menu open at a time, and a click elsewhere closes it

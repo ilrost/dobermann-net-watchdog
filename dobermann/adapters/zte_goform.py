@@ -21,6 +21,7 @@ challenge; password field = SHA256(SHA256(password).upper() + LD).upper().
 """
 import hashlib
 import json
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -187,8 +188,10 @@ class ZteGoform(Adapter):
         try:
             data = json.loads(raw)
         except ValueError:
-            return raw.strip('"')
-        return (data.get("LD") or "") if isinstance(data, dict) else str(data)
+            data = raw.strip('"')
+        ld = (data.get("LD") or "") if isinstance(data, dict) else str(data)
+        # a real challenge is hex; anything else (an HTML page) must not be hashed into a login attempt
+        return ld if re.fullmatch(r"[0-9A-Fa-f]{8,128}", ld) else ""
 
     def _login(self):
         """True if logged in. A rejected password pauses logins; a network error does not."""
@@ -205,8 +208,15 @@ class ZteGoform(Adapter):
             req = urllib.request.Request(f"{self.base}{SET_PATH}", data=body, method="POST",
                                          headers=self._headers(self.base))
             with opener.open(req, timeout=self.timeout) as r:
-                result = json.loads(r.read().decode("utf-8", "replace")).get("result")
-        except (urllib.error.URLError, OSError, ValueError, AttributeError):
+                raw = r.read().decode("utf-8", "replace")
+        except (urllib.error.URLError, OSError, ValueError):
+            return False
+        try:
+            result = json.loads(raw).get("result")
+        except (ValueError, AttributeError):
+            # the login went out but the answer is unreadable: it may have been a rejection, so back off
+            # as for one, or a wrong password would be retried on every sample until the router locks
+            self._pause(self.bad_password_s, _("risposta del router al login non leggibile"))
             return False
         if str(result) == "0":
             self._opener = opener

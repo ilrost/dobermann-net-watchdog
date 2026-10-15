@@ -55,7 +55,11 @@ class Tracker:
             resumable = self.open is None and self.pending is not None and ts - self.pending["ok_since"] <= grace
             fresh = self.open is None and not resumable
             if fresh and state in diagnosis.NOISY_CAUSES and self.noisy_streak < self.confirm:
-                pass   # unconfirmed blip from a clean baseline: in the samples, not an incident
+                # an unconfirmed blip from a clean baseline: in the samples, not an incident. A previous
+                # incident whose grace ran out is over all the same (blips must not keep it pending)
+                if self.pending is not None and ts - self.pending["ok_since"] > grace:
+                    self.on_close(self.pending["incident"], self.pending["ok_since"])
+                    self.pending = None
             else:
                 if self.open is None:
                     if resumable:
@@ -67,8 +71,6 @@ class Tracker:
                     self.pending = None
                 inc = self.open
                 self._add_phase(inc, state, ts)
-                if not inc["alerted"] and self.on_open(inc, obs, state):
-                    inc["alerted"] = True
                 inc["end_ts"] = ts
                 inc["samples_count"] += 1
                 inc["max_gw_loss"] = max(inc["max_gw_loss"], obs.gw_loss)
@@ -78,6 +80,9 @@ class Tracker:
                 inc["ip_after"] = wan_ip or inc["ip_after"]
                 inc["max_rx_bps"] = max(inc["max_rx_bps"], rx_bps or 0)
                 inc["max_tx_bps"] = max(inc["max_tx_bps"], tx_bps or 0)
+                # asked with the totals already including this sample
+                if not inc["alerted"] and self.on_open(inc, obs, state):
+                    inc["alerted"] = True
         else:
             self.noisy_streak, self.prev_noisy = 0, None
             if self.open is not None:
@@ -88,6 +93,9 @@ class Tracker:
             elif self.pending is not None and ts - self.pending["ok_since"] > grace:
                 self.on_close(self.pending["incident"], self.pending["ok_since"])
                 self.pending = None
+            elif self.pending is not None and wan_ip:
+                # some routers report the new IP a few samples after the line is back
+                self.pending["incident"]["ip_after"] = wan_ip
         # after the sample: an incident opened now keeps the IP from before it as ip_before
         if wan_ip:
             self.ip = wan_ip

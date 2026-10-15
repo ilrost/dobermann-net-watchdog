@@ -72,7 +72,8 @@ def rules(mail_cfg):
     out = {}
     for key, cat in CATEGORIES.items():
         r = dict(cat["default"])
-        s = saved.get(key) or {}
+        s = saved.get(key)
+        s = s if isinstance(s, dict) else {}       # a hand-edited value must not stop every alert
         if s.get("mode") in MODES:
             r["mode"] = s["mode"]
         try:
@@ -160,7 +161,7 @@ def _uptime(con, since, until):
     first = con.execute("SELECT min(ts) FROM samples").fetchone()[0]
     if first is not None and first > since:     # samples already past retention: the hourly summaries
         h_ok, h_total = con.execute("SELECT sum(ok_count), sum(samples_count) FROM hourly_stats WHERE hour_ts>=? AND hour_ts<?",
-                                    (since, int(first // 3600) * 3600)).fetchone()
+                                    (since, min(until, int(first // 3600) * 3600))).fetchone()
         ok, total = (ok or 0) + (h_ok or 0), (total or 0) + (h_total or 0)
     return (100.0 * ok / total) if total else None
 
@@ -192,7 +193,8 @@ def summary_message(con, since, until, rule_set, dashboard_url="", title=None, r
     ip_changes = con.execute("SELECT ts, ip_before, ip_after FROM ip_changes WHERE ts>=? AND ts<? ORDER BY ts",
                              (since, until)).fetchall()
     up = _uptime(con, since, until)
-    events = sum(v["count"] for v in per.values())
+    shown = visible_categories(radio_node is not None)
+    events = sum(v["count"] for k, v in per.items() if k in shown)
     quiet = events == 0
     lines = [_("dobermann: {title} dal {a} al {b}", title=title.lower(), a=_day(since), b=_day(until)), ""]
     lines.append(_("Connessione disponibile: {v}% del tempo", v=f"{up:.2f}") if up is not None

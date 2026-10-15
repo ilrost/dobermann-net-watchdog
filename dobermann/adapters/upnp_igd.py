@@ -9,6 +9,7 @@ to the multicast address, not to its own IP; both are tried.
 Some routers ship with UPnP turned off, and some operators disable it. Then this adapter simply does
 not detect the router, and dobermann falls back to what it measures from outside.
 """
+import http.client
 import re
 import socket
 import time
@@ -109,6 +110,8 @@ def parse_description(xml_text, location):
         if not curl:
             continue
         url = urllib.parse.urljoin(base, curl)
+        if urllib.parse.urlsplit(url).hostname != urllib.parse.urlsplit(location).hostname:
+            continue    # a control URL on another host: never sent requests on the description's word
         if stype.startswith(CONN_PREFIXES) and "conn_url" not in info:
             info["conn_type"], info["conn_url"] = stype, url
         elif stype.startswith(COMMON_PREFIX) and "common_url" not in info:
@@ -116,9 +119,19 @@ def parse_description(xml_text, location):
     return info if ("conn_url" in info or "common_url" in info) else None
 
 
+MAX_BODY = 512 * 1024       # a description or a SOAP answer is a few KB
+
+
+def _read(r):
+    data = r.read(MAX_BODY + 1)
+    if len(data) > MAX_BODY:
+        raise ValueError("response too large")
+    return data
+
+
 def _fetch(url, timeout):
     with urllib.request.urlopen(url, timeout=timeout) as r:
-        return r.read().decode("utf-8", "replace")
+        return _read(r).decode("utf-8", "replace")
 
 
 def soap(url, service_type, action, timeout=4.0):
@@ -130,8 +143,8 @@ def soap(url, service_type, action, timeout=4.0):
         "Content-Type": 'text/xml; charset="utf-8"', "SOAPAction": f'"{service_type}#{action}"'})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            root = ET.fromstring(r.read())
-    except (urllib.error.URLError, OSError, ET.ParseError, ValueError):
+            root = ET.fromstring(_read(r))
+    except (urllib.error.URLError, OSError, ET.ParseError, ValueError, http.client.HTTPException):
         return None
     for el in root.iter():
         if _local(el.tag) == f"{action}Response":

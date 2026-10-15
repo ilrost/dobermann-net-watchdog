@@ -135,6 +135,14 @@ class TestZteGoform(unittest.TestCase):
         self.assertEqual(self.fake.logins, 1)
         self.assertIn("password rifiutata", a.status()["motivo"])
 
+    def test_an_unreadable_login_answer_is_not_retried_every_sample(self):
+        self.fake.garbled_login = True
+        a = self.adapter("whatever", bad_password_s=3600)
+        r1, r2, r3 = run_sample(a), run_sample(a), run_sample(a)
+        self.assertTrue(r1.ok and r2.ok and r3.ok)     # the public fields still arrive
+        self.assertEqual(self.fake.logins, 1)          # one login attempt, then the pause
+        self.assertIn("non leggibile", a.status()["motivo"])
+
     def test_unreachable_router(self):
         a = ZteGoform("127.0.0.1", options={"base_url": f"http://127.0.0.1:{closed_port()}"}, timeout=1)
         r = run_sample(a)
@@ -228,3 +236,17 @@ class TestFactTypes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestReviewHardening(unittest.TestCase):
+    def test_upnp_control_urls_on_another_host_are_ignored(self):
+        from dobermann.adapters import upnp_igd
+        xml = ("<root xmlns='urn:schemas-upnp-org:device-1-0'><device><serviceList><service>"
+               "<serviceType>urn:schemas-upnp-org:service:WANIPConnection:1</serviceType>"
+               "<controlURL>http://192.0.2.99/steal</controlURL></service></serviceList></device></root>")
+        self.assertIsNone(upnp_igd.parse_description(xml, "http://192.0.2.1:49000/igd.xml"))
+
+    def test_alert_rules_survive_a_hand_edited_value(self):
+        from dobermann import alerts
+        r = alerts.rules({"rules": {"outage": "immediate"}})
+        self.assertEqual(r["outage"]["mode"], "after")

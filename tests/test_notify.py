@@ -78,3 +78,10 @@ class TestNotify(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHeaderSafety(unittest.TestCase):
+    def test_a_line_break_in_a_header_is_refused_before_anything_is_sent(self):
+        ok, why = notify.deliver({"to": "a@example.org\nBcc: x@example.org", "transport": "relay"}, {}, "s", "b")
+        self.assertFalse(ok)
+        self.assertIn("a capo", why)

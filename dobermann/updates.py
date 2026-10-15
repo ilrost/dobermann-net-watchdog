@@ -11,6 +11,9 @@ tools/install.py, which never touches configuration or data, and checks that the
 If they do not, it puts the previous code back. No git needed. A copy that is a git checkout is left
 to git: it is told to `git pull`.
 """
+import contextlib
+import fcntl
+import http.client
 import io
 import json
 import os
@@ -67,7 +70,7 @@ def _get(url, timeout, limit=1024 * 1024):
         if e.code == 404:
             raise UpdateError(_("nessuna versione raggiungibile su GitHub (repository privato o senza versioni)")) from None
         raise UpdateError(_("GitHub ha risposto {v}", v=e.code)) from None
-    except (urllib.error.URLError, OSError) as e:
+    except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
         raise UpdateError(_("GitHub non raggiungibile: {v}", v=getattr(e, "reason", e))) from None
     if len(data) > limit:
         raise UpdateError(_("risposta di GitHub troppo grande"))
@@ -174,18 +177,41 @@ def _run(cmd):
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
-def apply(tag, code_dir=CODE_DIR, fetch=_get, runner=_run, out=print, wait_s=8):
+@contextlib.contextmanager
+def _one_at_a_time(lock_path):
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise UpdateError(_("un altro aggiornamento è già in corso")) from None
+        yield
+    finally:
+        os.close(fd)
+
+
+def apply(tag, code_dir=CODE_DIR, fetch=_get, runner=_run, out=print, wait_s=8, lock_path=None):
     """Replaces the code with version `tag`. Returns True if the new version is running."""
+    code_dir = code_dir.rstrip("/")
+    if not os.path.isdir(code_dir):
+        # an update cut off between the two renames leaves only <code>.old: never delete that one
+        raise UpdateError(_("{v} non esiste: se c'è {v}.old, rimettilo al suo posto (mv {v}.old {v}) e riprova",
+                            v=code_dir))
     if os.path.isdir(os.path.join(code_dir, ".git")):
         raise UpdateError(_("{v} è una copia git: aggiorna con `git pull`, poi `sudo python3 tools/install.py --apply`",
                             v=code_dir))
     if os.geteuid() != 0:
         raise UpdateError(_("l'aggiornamento va fatto da root"))
+    with _one_at_a_time(lock_path or os.path.join(os.path.dirname(code_dir), ".dobermann-update.lock")):
+        return _apply(tag, code_dir, fetch, runner, out, wait_s)
+
+
+def _apply(tag, code_dir, fetch, runner, out, wait_s):
     out("  ..  " + _("scarico {v}", v=tag))
     data = fetch(ARCHIVE_URL.format(tag=tag), 60, limit=MAX_ARCHIVE)
-    parent = os.path.dirname(code_dir.rstrip("/"))
+    parent = os.path.dirname(code_dir)
     tmp = tempfile.mkdtemp(prefix=".dobermann-update-", dir=parent)
-    old = code_dir.rstrip("/") + ".old"
+    old = code_dir + ".old"
     try:
         new_root = unpack(data, tmp)
         out("  ok  " + _("archivio verificato"))
@@ -205,5 +231,9 @@ def apply(tag, code_dir=CODE_DIR, fetch=_get, runner=_run, out=print, wait_s=8):
         out("      " + line)
     shutil.rmtree(code_dir, ignore_errors=True)
     os.replace(old, code_dir)
-    runner([sys.executable, os.path.join(code_dir, "tools", "install.py"), "--apply", "--no-summary"])
+    back = runner([sys.executable, os.path.join(code_dir, "tools", "install.py"), "--apply", "--no-summary"])
+    if back.returncode == 0 and _services_up(runner, wait_s):
+        out("  ok  " + _("la versione di prima è di nuovo in funzione"))
+    else:
+        out("  !!  " + _("anche la versione di prima non riparte: controlla con `systemctl status dobermann dobermann-web`"))
     return False

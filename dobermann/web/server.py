@@ -329,7 +329,8 @@ def _address_section(cfg, commands=None):
     reach = [f"{scheme}://{here}/"] + ([f"{scheme}://{name}/"] if name else [])
     plat = address.detect_platform(cfg)
     where = {"proxmox-lxc": _("container Proxmox {v}", v=plat.get("ctid")), "networkmanager": "NetworkManager",
-             "ifupdown": "ifupdown (/etc/network/interfaces)", "networkd": "systemd-networkd"}.get(
+             "ifupdown": "ifupdown (/etc/network/interfaces)", "networkd": "systemd-networkd",
+             "netplan": "netplan"}.get(
         plat["kind"], _("non riconosciuta"))
     result = ""
     if commands:
@@ -461,6 +462,8 @@ def _mail_from_form(form, cfg):
                    "username": f("smtp_username")})
     m.pop("relay", None)
     m["from"] = f("from")
+    if any(c in m["to"] + m["from"] + m["smtp"]["username"] for c in "\r\n"):
+        raise FormError(_("destinatario, mittente o oggetto contengono un a capo."))
     if m["enabled"] and not m["to"]:
         raise FormError(_("per inviare le notifiche serve un destinatario"))
     return m
@@ -501,8 +504,14 @@ class LoginThrottle:
 _login_throttle = LoginThrottle()
 
 
+# where /language may send the browser back to: a path of this panel, nothing that a browser could read
+# as another host ("//", "/\\") and nothing that could end the Location header (CR, LF)
+_SAFE_NEXT = re.compile(r"^/(?![/\\])[A-Za-z0-9_\-./?=&%]*$")
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "dobermann"
+    timeout = 30        # a client that connects and stalls frees its thread
 
     def log_message(self, fmt, *args):
         pass
@@ -557,11 +566,19 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         return True
 
+    def _body(self, limit):
+        """The request body, or None when Content-Length is missing, malformed, negative or over `limit`
+        (a negative length would otherwise mean "read until the client hangs up")."""
+        raw = (self.headers.get("Content-Length") or "0").strip()
+        if not raw.isdigit() or int(raw) > limit:
+            return None
+        return self.rfile.read(int(raw))
+
     def _form(self):
-        n = int(self.headers.get("Content-Length") or 0)
-        if n > 64 * 1024:
+        body = self._body(64 * 1024)
+        if body is None:
             return {}
-        return urllib.parse.parse_qs(self.rfile.read(n).decode("utf-8", "replace"), keep_blank_values=True)
+        return urllib.parse.parse_qs(body.decode("utf-8", "replace"), keep_blank_values=True)
 
     def _login_page(self, error=None, status=200):
         first = not auth.is_configured()
@@ -611,8 +628,7 @@ class Handler(BaseHTTPRequestHandler):
             self._redirect("/login")
             return
         if path == "/logout":
-            auth.destroy_session(self._token())
-            self._redirect("/login", clear=True)
+            self._redirect("/watchdash")      # logging out is a POST: a link on another site must not do it
         elif path in ("/", "/watchdash"):
             if path == "/":
                 self._redirect("/watchdash")
@@ -680,14 +696,17 @@ class Handler(BaseHTTPRequestHandler):
                     raw["language"] = lang
                     config.save(raw)
             nxt = form.get("next", ["/watchdash"])[0]
-            self._redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/watchdash")
+            self._redirect(nxt if _SAFE_NEXT.match(nxt) else "/watchdash")
+        elif path == "/logout":
+            auth.destroy_session(self._token())
+            self._redirect("/login", clear=True)
         elif path == "/logout-all":
             auth.destroy_all_sessions()
             self._redirect("/login", clear=True)
         elif path == "/api/interval":
             try:
-                n = int(self.headers.get("Content-Length") or 0)
-                v = int(json.loads(self.rfile.read(min(n, 1024)) or b"{}").get("interval"))
+                data = json.loads(self._body(1024) or b"{}")
+                v = int(data.get("interval") if isinstance(data, dict) else None)
             except (TypeError, ValueError):
                 self._json({"error": _("interval deve essere un numero")}, 400)
                 return

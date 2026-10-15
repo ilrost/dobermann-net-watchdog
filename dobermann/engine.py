@@ -119,7 +119,7 @@ class Engine:
             break    # one cellular modem per chain is the only case seen so far
         cause, note = diagnosis.close_cause(inc["phases"], inc["ip_before"], inc["ip_after"], before, after, during)
         dur = inc["end_ts"] - inc["start_ts"]
-        detail = f"{inc['samples_count']} campioni, durata {dur:.0f}s"
+        detail = _("{n} campioni, durata {d}s", n=inc["samples_count"], d=f"{dur:.0f}")
         if len(inc["phases"]) > 1:
             detail += " -- " + " → ".join(
                 f"{p['cause']}({max(p['end_ts'] - p['start_ts'], self.interval()):.0f}s)" for p in inc["phases"])

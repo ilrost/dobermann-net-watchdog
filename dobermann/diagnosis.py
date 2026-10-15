@@ -138,8 +138,10 @@ def dominant_cause(phases):
 
 def is_ip_renewal_cycle(phases, ip_before, ip_after):
     """A routine reconnect by the operator: a link/WAN renegotiation that ended on a genuinely new IP.
-    GATEWAY_UNRESPONSIVE, CELLULAR_NO_SERVICE and UPSTREAM_OUTAGE are never routine, even when the
-    IP changed along the way (a carrier outage can end on a new IP)."""
+    An incident rooted in GATEWAY_UNRESPONSIVE or CELLULAR_NO_SERVICE is never routine. A short
+    UPSTREAM_OUTAGE phase inside a renegotiation is part of it (the new IP settling): on a real FWA line
+    about one renewal in six has one, never longer than a minute; a long one makes the incident exceed
+    RENEWAL_MAX_S and renewal_or_outage() calls it an outage."""
     if not ip_before or not ip_after or ip_before == ip_after:
         return False
     return primary_cause(phases) in ("LOCAL_LINK_DOWN", "WAN_DISCONNECTED", "IP_CHANGE_DROP")
@@ -156,17 +158,19 @@ def signal_note(before, after):
     side (handover, coverage); a stable signal at a session refresh by the operator."""
     if not before or not after:
         return None
-    findings = []
+    findings, compared = [], False
     for key, name in (("cell.lte_rsrp_dbm", "LTE RSRP"), ("cell.nr_rsrp_dbm", "5G RSRP")):
         b, a = before.get(key), after.get(key)
-        if b is not None and a is not None and b - a >= RSRP_DROP_DB:
-            findings.append(f"{name} {b:.0f}->{a:.0f}dBm")
+        if b is not None and a is not None:
+            compared = True
+            if b - a >= RSRP_DROP_DB:
+                findings.append(f"{name} {b:.0f}->{a:.0f}dBm")
     bt, at = before.get("cell.rat_raw"), after.get("cell.rat_raw")
     if bt and at and bt != at:
         findings.append(_("modalità rete {a}->{b}", a=bt, b=at))
     if findings:
         return _("possibile causa radio (cambio cella/handover): {v}", v=", ".join(findings))
-    if bt and at:
+    if bt and at and compared:     # "stable" only when a signal was actually measured on both sides
         return _("segnale stabile prima e dopo: probabile rinnovo di sessione lato operatore, non un problema di copertura")
     return None
 
@@ -176,7 +180,7 @@ def legacy_rat(readings):
     if not readings:
         return None
     legacy = [r.get("cell.rat_raw") or r.get("cell.rat") for r in readings if r.get("cell.rat") in LEGACY_RATS]
-    if 2 * len(legacy) < len(readings):
+    if 2 * len(legacy) <= len(readings):      # most of the time: more than half, not half
         return None
     return max(set(legacy), key=legacy.count)
 

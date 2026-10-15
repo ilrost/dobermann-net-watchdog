@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS hourly_stats (
     avg_rx_bps REAL, avg_tx_bps REAL, max_rx_bps REAL, max_tx_bps REAL
 );
 CREATE INDEX IF NOT EXISTS incidents_start ON incidents (start_ts);
+CREATE INDEX IF NOT EXISTS node_facts_ts ON node_facts (ts);
 """
 
 

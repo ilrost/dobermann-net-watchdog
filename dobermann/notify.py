@@ -62,6 +62,9 @@ def deliver(mail_cfg, secrets, subject, body):
     to_addr, from_addr = mail_cfg.get("to"), sender(mail_cfg)
     if not to_addr:
         return False, _("manca il destinatario.")
+    if any(c in (v or "") for v in (subject, from_addr, to_addr) for c in "\r\n"):
+        # a line break in a header would add headers of its own (a hidden Bcc, for instance)
+        return False, _("destinatario, mittente o oggetto contengono un a capo.")
     msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"], msg["From"], msg["To"] = subject, from_addr, to_addr
     msg["Date"], msg["Message-ID"] = formatdate(localtime=True), make_msgid(domain="dobermann.local")
@@ -71,7 +74,7 @@ def deliver(mail_cfg, secrets, subject, body):
         except Exception as e:
             return False, _("il server di posta locale non ha accettato la mail ({v}).", v=f"{type(e).__name__}: {e}")
         return (True, None) if ok else (False, _("il server di posta locale non ha accettato la mail (dettagli nel log)."))
-    s_cfg = mail_cfg.get("smtp", {})
+    s_cfg = mail_cfg.get("smtp") or {}
     host, stage = s_cfg.get("host"), "connect"
     try:
         security = s_cfg.get("security", "starttls")
@@ -87,8 +90,11 @@ def deliver(mail_cfg, secrets, subject, body):
                 s.login(s_cfg["username"], password)
             stage = "send"
             s.sendmail(from_addr, [to_addr], msg.as_string())
+            stage = "sent"
         return True, None
     except Exception as e:
+        if stage == "sent":
+            return True, None      # accepted by the server; only the goodbye (QUIT) failed
         return False, explain(stage, e, host)
 
 

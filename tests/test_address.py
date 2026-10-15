@@ -24,17 +24,32 @@ class TestAddress(unittest.TestCase):
     def test_networkmanager_and_the_others(self):
         _, cmds = address.commands({"kind": "networkmanager", "connection": "Wired 1"}, self.IF, self.GW,
                                    extra_restarts=["dobermann-mdns"])
-        self.assertIn('nmcli connection modify "Wired 1" ipv4.method manual ipv4.addresses 192.0.2.60/24 '
-                      'ipv4.gateway 192.0.2.1', cmds)
+        self.assertIn("nmcli connection modify 'Wired 1' ipv4.method manual ipv4.addresses 192.0.2.60/24 "
+                      "ipv4.gateway 192.0.2.1", cmds)
         self.assertEqual(cmds[-1], "systemctl restart dobermann-mdns")
-        for kind in ("ifupdown", "networkd", "unknown"):
+        for kind in ("ifupdown", "networkd", "netplan", "unknown"):
             _, cmds = address.commands({"kind": kind}, self.IF, self.GW)
             self.assertTrue(any("192.0.2.60/24" in c for c in cmds), kind)
 
     def test_platform_from_the_installer_record_first(self):
         self.assertEqual(address.detect_platform({"platform": {"kind": "proxmox-lxc", "ctid": 5}})["ctid"], 5)
-        self.assertEqual(address.detect_platform({}, exists=lambda p: p == "/etc/network/interfaces",
-                                                 nm=lambda: None)["kind"], "ifupdown")
+        none = lambda *a: None  # noqa: E731
+        empty = lambda: []      # noqa: E731
+        p = address.detect_platform({}, nm=none, device="ens18", has_ifupdown=lambda d: d == "ens18",
+                                    netplan=empty, networkd=empty)
+        self.assertEqual(p, {"kind": "ifupdown", "device": "ens18"})
+        # an interfaces file with only the loopback is not ifupdown managing the network
+        p = address.detect_platform({}, nm=none, device="ens18", has_ifupdown=lambda d: False,
+                                    netplan=lambda: ["/etc/netplan/50-cloud-init.yaml"], networkd=empty)
+        self.assertEqual(p["kind"], "netplan")
+
+    def test_commands_use_the_real_interface_and_quote_what_could_be_shell(self):
+        _, cmds = address.commands({"kind": "ifupdown", "device": "ens18"}, self.IF, self.GW)
+        self.assertEqual(cmds[0], "iface ens18 inet static")
+        _, cmds = address.commands({"kind": "networkmanager", "connection": "$(touch x)"}, self.IF, self.GW)
+        self.assertTrue(cmds[0].startswith("nmcli connection modify '$(touch x)' "), cmds[0])
+        with self.assertRaises(ValueError):
+            address.parse_new("192.0.2.60/24", "192.0.2.60")
 
     def test_certificate_covers_old_and_new(self):
         self.assertEqual(address.cert_names("192.0.2.50", self.IF.ip, "dobermann.local"),

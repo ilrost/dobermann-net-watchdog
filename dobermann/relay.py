@@ -44,7 +44,10 @@ def remotes_line(smtp_cfg, password):
             raise ValueError(_("{v}: non può contenere spazi (per le password per app di Gmail: scrivila senza spazi)",
                                v=label))
     parts = [host, "smtp", f"--port={int(smtp_cfg.get('port') or 587)}"]
-    security = smtp_cfg.get("security", "starttls")
+    security = smtp_cfg.get("security") or "starttls"
+    if security not in ("starttls", "ssl", "none"):
+        # anything else would silently become "no encryption", with the password still sent
+        raise ValueError(_("sicurezza SMTP non valida"))
     if security == "starttls":
         parts.append("--starttls")
     elif security == "ssl":
@@ -78,7 +81,7 @@ def flush(trigger=NULLMAILER_TRIGGER):
     """Asks the relay to try its queue now, instead of on its own retry timer. Called when the connection
     comes back, so the 'it is down' mail arrives right before the 'it is back' one."""
     try:
-        if shutil.which("postqueue"):
+        if detect() == "postfix":
             subprocess.run(["postqueue", "-f"], capture_output=True, timeout=10)
             return
         fd = os.open(trigger, os.O_WRONLY | os.O_NONBLOCK)

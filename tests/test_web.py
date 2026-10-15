@@ -86,7 +86,7 @@ class TestAuth(WebCase):
         self.assertEqual(status, 400)
         status, url, _ = self.post("/login", password="password1", password2="password1")
         self.assertTrue(url.endswith("/setup"))
-        self.get("/logout")
+        self.post("/logout")
         status, _, _ = self.post("/login", password="wrong-one")
         self.assertEqual(status, 401)
         status, url, _ = self.post("/login", password="password1")
@@ -123,7 +123,7 @@ class TestLoginThrottle(WebCase):
     def test_sixth_wrong_password_is_refused_without_checking(self):
         from unittest import mock
         self.login()
-        self.get("/logout")
+        self.post("/logout")
         throttle = server.LoginThrottle()
         with mock.patch.object(server, "_login_throttle", throttle), mock.patch.object(server.time, "sleep"):
             for _ in range(5):
@@ -326,7 +326,7 @@ class TestToolbarAndAddress(WebCase):
         self.login()
         for path in ("/watchdash", "/report", "/setup"):
             _, _, body = self.get(path)
-            for target in ('action="/language"', 'href="/setup"', 'action="/logout-all"', 'href="/logout"'):
+            for target in ('action="/language"', 'href="/setup"', 'action="/logout-all"', 'action="/logout"'):
                 self.assertIn(target, body, (path, target))
 
     def test_language_menu_changes_the_language_and_returns_to_the_page(self):
@@ -383,3 +383,47 @@ class TestUpdatesSection(WebCase):
         self.assertIn('class="upd"', body)
         self.post("/setup", action="save_updates")
         self.assertFalse(config.load()["updates"]["check"])
+
+
+class TestAuthConcurrency(WebCase):
+    def test_parallel_logins_keep_every_session_and_the_password(self):
+        from dobermann.web import auth
+        auth.set_password("password1")
+        tokens = []
+        threads = [threading.Thread(target=lambda: tokens.append(auth.create_session())) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertTrue(all(auth.check_session(t) for t in tokens))
+        self.assertTrue(auth.verify_password("password1"))
+
+
+class TestRequestHardening(WebCase):
+    def raw(self, request):
+        import socket
+        host, port = self.base.split("//")[1].split(":")
+        with socket.create_connection((host, int(port)), timeout=10) as s:
+            s.sendall(request)
+            return s.recv(4096).decode(errors="replace")
+
+    def test_a_negative_content_length_is_not_read_until_the_client_hangs_up(self):
+        reply = self.raw(b"POST /login HTTP/1.1\r\nHost: x\r\nContent-Length: -1\r\n\r\npassword=aaaaaaaa")
+        self.assertTrue(reply.startswith("HTTP/1."), reply[:80])
+
+    def test_logout_is_a_post_and_a_link_cannot_log_out(self):
+        self.login()
+        _, url, _ = self.get("/logout")
+        self.assertTrue(url.endswith("/watchdash"))
+        _, url, _ = self.post("/logout")
+        self.assertTrue(url.endswith("/login"))
+
+    def test_interval_api_refuses_a_body_that_is_not_an_object(self):
+        self.login()
+        req = urllib.request.Request(self.base + "/api/interval", data=b"[1]", method="POST")
+        try:
+            self.opener.open(req, timeout=10)
+            status = 200
+        except urllib.error.HTTPError as e:
+            status = e.code
+        self.assertEqual(status, 400)

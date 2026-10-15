@@ -160,6 +160,8 @@ def update_config(cfg_dir, language=None, url=None, platform=None, install=None)
             cfg = json.load(f)
     except FileNotFoundError:
         cfg = {}
+    except ValueError as e:
+        raise InstallError(_("{v} non è un JSON valido ({e}): correggilo o spostalo, poi rilancia", v=path, e=e)) from None
     changed = False
     for key, value in (("language", language), ("dashboard_url", url), ("platform", platform), ("install", install)):
         if value is not None and cfg.get(key) != value:
@@ -281,8 +283,12 @@ def run(args, out=print, runner=_run, password=None, summary=True):
         _chown_like_dir(env_path, cfg)
     # the link changes only when an address is given; an update keeps the one in use (or set in the panel)
     url = panel_url(https, args.address) if args.address else None
-    if url is None and not (saved_config(cfg).get("dashboard_url")) and (args.name or args.bind):
+    saved_url = saved_config(cfg).get("dashboard_url") or ""
+    if url is None and not saved_url and (args.name or args.bind):
         url = panel_url(https, args.name or args.bind)
+    if url is None and saved_url.startswith(("http://", "https://")):
+        # switched between HTTP and HTTPS: the link in the mails follows, the rest of it stays
+        url = ("https://" if https else "http://") + saved_url.split("://", 1)[1]
     platform = ({"kind": "proxmox-lxc", "ctid": args.platform_ct, "bridge": args.platform_bridge or "vmbr0"}
                 if args.platform_ct else None)
     choices = {"https": https, "name": args.name, "bind": args.bind}

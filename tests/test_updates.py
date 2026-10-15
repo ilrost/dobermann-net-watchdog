@@ -95,7 +95,7 @@ class TestApply(unittest.TestCase):
             return subprocess.CompletedProcess(cmd, 0 if ok else 3, "", "")
         with mock.patch.object(updates.os, "geteuid", return_value=0):
             return updates.apply("v0.9.0", code_dir=self.code, fetch=self.fetch, runner=runner, out=lambda *a: None,
-                                 wait_s=0)
+                                 wait_s=0, lock_path=os.path.join(self.tmp.name, "lock"))
 
     def test_new_code_in_place_old_kept(self):
         self.assertTrue(self.run_apply(True))
@@ -106,6 +106,12 @@ class TestApply(unittest.TestCase):
         self.assertFalse(self.run_apply(False))
         self.assertTrue(os.path.isfile(os.path.join(self.code, "OLD")))
         self.assertFalse(os.path.exists(os.path.join(self.code, "wizard.py")))
+
+    def test_a_cut_off_update_never_deletes_the_only_copy(self):
+        os.replace(self.code, self.code + ".old")        # crashed between the two renames
+        with self.assertRaises(updates.UpdateError):
+            self.run_apply(True)
+        self.assertTrue(os.path.isfile(os.path.join(self.code + ".old", "OLD")))
 
     def test_a_git_checkout_is_left_to_git(self):
         os.makedirs(os.path.join(self.code, ".git"))

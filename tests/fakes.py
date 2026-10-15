@@ -47,6 +47,7 @@ class FakeZte(_Server):
         self.ld = None
         self.logins = 0
         self.counter = 0
+        self.garbled_login = False    # answer the login POST with something that is not JSON
         super().__init__(_ZteHandler)
 
     def owner_logs_in(self):
@@ -105,6 +106,13 @@ class _ZteHandler(BaseHTTPRequestHandler):
             self._json({"result": "failure"})
             return
         fake.logins += 1
+        if fake.garbled_login:
+            body = b"<html>error</html>"
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         ad = hashlib.sha256(fake.password.encode()).hexdigest().upper()
         expected = hashlib.sha256((ad + (fake.ld or "")).encode()).hexdigest().upper()
         if form.get("password") == [expected]:

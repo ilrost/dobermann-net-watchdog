@@ -87,10 +87,14 @@ class TestCloseCause(unittest.TestCase):
         self.assertIn("ENDC->HSPA+", note)
 
     def test_routine_renewal(self):
-        cause, note = close_cause(phases(("LOCAL_LINK_DOWN", 1000, 1005), ("WAN_DISCONNECTED", 1010, 1030)),
-                                  "100.64.0.1", "100.64.0.2", {"cell.rat_raw": "ENDC"}, {"cell.rat_raw": "ENDC"})
+        ph = phases(("LOCAL_LINK_DOWN", 1000, 1005), ("WAN_DISCONNECTED", 1010, 1030))
+        cause, note = close_cause(ph, "100.64.0.1", "100.64.0.2", {"cell.rat_raw": "ENDC", "cell.lte_rsrp_dbm": -95.0},
+                                  {"cell.rat_raw": "ENDC", "cell.lte_rsrp_dbm": -96.0})
         self.assertEqual(cause, "IP_RENEWAL_CYCLE")
         self.assertIn("segnale stabile", note)
+        # no signal measured on both sides: nothing to say about the signal
+        _c, note = close_cause(ph, "100.64.0.1", "100.64.0.2", {"cell.rat_raw": "ENDC"}, {"cell.rat_raw": "ENDC"})
+        self.assertIsNone(note)
 
     def test_long_renewal_shaped_incident_is_an_outage(self):
         """Link drops and IP settling, but hours without internet in between."""
@@ -389,3 +393,29 @@ class TestNoSecretsInConfig(EngineCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTrackerEdges(unittest.TestCase):
+    def obs(self, ts, gw=0.0, net=0.0):
+        return Observation(ts=ts, gw_loss=gw, internet_loss=net)
+
+    def test_ip_reported_late_still_counts_and_blips_do_not_hold_an_incident(self):
+        from dobermann.incidents import Tracker
+        closed = []
+        t = Tracker(confirm_samples=3, on_close=lambda inc, ok: closed.append(inc))
+        t.feed(self.obs(0), "OK", 5, wan_ip="198.51.100.1")
+        t.feed(self.obs(5, gw=100, net=100), "GATEWAY_UNRESPONSIVE", 5)
+        t.feed(self.obs(10), "OK", 5, wan_ip=None)            # line back, no IP yet
+        t.feed(self.obs(15), "OK", 5, wan_ip="198.51.100.2")  # the new IP, still within grace
+        noisy = sorted(diagnosis.NOISY_CAUSES)
+        for i in range(6):                                    # after the grace: blips that never confirm
+            t.feed(self.obs(30 + 5 * i, net=50), noisy[i % 2] if len(noisy) > 1 else noisy[0], 5)
+        self.assertEqual(len(closed), 1)
+        self.assertEqual((closed[0]["ip_before"], closed[0]["ip_after"]), ("198.51.100.1", "198.51.100.2"))
+
+    def test_the_alert_rule_sees_the_current_sample_in_the_totals(self):
+        from dobermann.incidents import Tracker
+        seen = []
+        t = Tracker(on_open=lambda inc, obs, cause: seen.append((inc["samples_count"], inc["max_gw_loss"])) or True)
+        t.feed(self.obs(0, gw=100, net=100), "GATEWAY_UNRESPONSIVE", 5)
+        self.assertEqual(seen, [(1, 100)])
