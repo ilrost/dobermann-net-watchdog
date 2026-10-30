@@ -10,7 +10,7 @@ Run it on the Proxmox host, as root, from a copy of this repository.
 The CT: unprivileged, Debian "standard" template (the newest one already on the host; downloaded only
 when there is none, or with --template), 1 core, 256 MB,
 4 GB of disk (30 days of samples take ~0.5 GB), started at boot, on the bridge of the host's own LAN (vmbr0). A fixed address is better
-than DHCP: it is where the panel will be. Inside it: python3, ping, openssl, nullmailer; the code in /opt/dobermann,
+than DHCP: it is where the panel will be. Inside it: python3, ping, openssl, avahi; the code in /opt/dobermann,
 then tools/install.py. Nothing outside the new CT is changed, apart from the template download.
 
 An update installs any package added to PACKAGES since, replaces /opt/dobermann (the previous code stays in /opt/dobermann.old until the next update)
@@ -162,7 +162,7 @@ def wait_for_network(ctid, timeout=120):
 
 def install_packages(ctid, out):
     out("  ..  " + _("installo i pacchetti"))
-    # noninteractive: nullmailer's installer otherwise waits for an answer nobody can give
+    # noninteractive: a package's installer must never wait for an answer nobody can give
     pct_exec(ctid, "export DEBIAN_FRONTEND=noninteractive; apt-get update -q >/dev/null && "
                    f"apt-get install -y -q --no-install-recommends {' '.join(PACKAGES)} >/dev/null")
     out("  ok  " + _("pacchetti installati"))

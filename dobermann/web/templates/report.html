@@ -341,7 +341,8 @@ function renderExportNav(){
   const from = toDateStr(DATA.range_start), to = toDateStr(DATA.range_end - 1);
   el.innerHTML =
     `<a href="/export?table=samples&from=${from}&to=${to}">${_t('Esporta CSV (grezzo)')}</a>` +
-    `<a href="/export?table=hourly&from=${from}&to=${to}">${_t('Esporta CSV (orario)')}</a>`;
+    `<a href="/export?table=hourly&from=${from}&to=${to}">${_t('Esporta CSV (orario)')}</a>` +
+    `<a href="/dossier?month=${from.slice(0, 7)}">${_t('Registro dei disservizi')}</a>`;
 }
 
 function renderHeader(){

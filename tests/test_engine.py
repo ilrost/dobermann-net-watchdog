@@ -267,6 +267,41 @@ class TestEngineReplay(EngineCase):
         self.assertIn("ancora in corso", self.engine.outbox[0][1])
         self.assertIn("Risolto", subjects[1])
 
+    def test_mails_wait_in_the_queue_while_the_provider_is_down_and_keep_their_order(self):
+        from unittest import mock
+        from dobermann import mailqueue
+        config.save({"dns": {"local": "192.0.2.53"},
+                     "mail": {"enabled": True, "to": "io@example.org", "rules": {"outage": {"mode": "immediate"}}}})
+        taken, provider_up = [], [False]
+
+        def deliver(mail_cfg, secrets, subject, body):
+            if not provider_up[0]:
+                return False, "server non raggiungibile"
+            taken.append(subject)
+            return True, None
+        with mock.patch.object(mailqueue.notify, "deliver", deliver), mock.patch("builtins.print"):
+            self.run_samples(2, wan=wan("100.64.0.1"))
+            self.run_samples(4, internet_loss=100, wan=wan(None, link=False, status="disconnected"))
+            self.assertEqual(taken, [])                         # the "down" mail could not go
+            provider_up[0] = True
+            self.run_samples(6, wan=wan("100.64.0.1"))          # back: the queue is tried at once
+        self.assertEqual(len(taken), 2, taken)
+        self.assertNotIn("Risolto", taken[0])
+        self.assertIn("Risolto", taken[1])
+        self.assertEqual(mailqueue.status(self.engine.con)["waiting"], 0)
+
+    def test_the_slowness_of_a_speed_test_is_not_an_event(self):
+        import time as _t
+        from dobermann import speedtest, store
+        store.set_meta(self.engine.con, speedtest.RUNNING_META, _t.time() + 60)
+        self.engine.con.commit()
+        self.ts = _t.time()
+        self.run_samples(6, rtt=400, wan=wan("100.64.0.1"))
+        store.set_meta(self.engine.con, speedtest.RUNNING_META, 0)
+        self.run_samples(6, rtt=400, wan=wan("100.64.0.1"))   # without a test, the same latency is one
+        self.run_samples(6, wan=wan("100.64.0.1"))
+        self.assertEqual([r[0] for r in self.incidents()], ["HIGH_LATENCY"])
+
     def test_summary_once_per_slot_and_not_on_first_run(self):
         import time as _t
         config.save({"dns": {"local": "192.0.2.53"}, "mail": {"summary": {"frequency": "daily", "hour": 8}}})

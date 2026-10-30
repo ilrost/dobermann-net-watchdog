@@ -5,11 +5,12 @@
 Configuration is re-read when one of its files changes, so an edit (from the panel or by hand)
 applies on the next sample without restarting the service.
 """
+import json
 import os
 import threading
 import time
 
-from dobermann import alerts, config, diagnosis, i18n, narrative, notify, probes, store, updates
+from dobermann import alerts, config, diagnosis, i18n, mailqueue, narrative, probes, speedtest, store, updates
 from dobermann.i18n import _
 from dobermann.chain import Chain
 from dobermann.incidents import Tracker
@@ -19,6 +20,8 @@ DB_SIZE_ALERT_BYTES = 500 * 1024 * 1024   # a safety net, not an expected size
 DB_SIZE_ALERT_COOLDOWN_S = 7 * 86400
 SUMMARY_CHECK_EVERY_S = 60
 SUMMARY_META = "last_summary_slot"
+NODE_STATUS_META = "node_status"
+LOAD_STATES = ("HIGH_LATENCY", "PACKET_LOSS")
 COUNTER_WRAP = 2 ** 32                    # UPnP byte counters are 32-bit on many routers
 
 
@@ -41,7 +44,9 @@ def _rate(prev, cur, dt, max_bps=None):
 
 class Engine:
     def __init__(self, db_path=None, async_mail=True, update_fetch=None):
-        self.con = store.connect(db_path or config.db_file())
+        self.db_path = db_path or config.db_file()
+        self.con = store.connect(self.db_path)
+        self.mailer = mailqueue.Sender(self.db_path)
         self.facts_writer = store.FactsWriter()
         self.async_mail = async_mail
         self._mtimes = None
@@ -87,14 +92,16 @@ class Engine:
     # -- notifications --------------------------------------------------------------------------
 
     def _mail(self, subject, body):
+        """Into the mail queue first (see mailqueue.py), then a delivery round in a thread: an SMTP timeout
+        must not delay the next sample, and a mail that cannot go now is not lost."""
         self.outbox.append((subject, body))
-        mail_cfg = self.cfg["mail"]
-        if not mail_cfg.get("enabled"):
+        if not self.cfg["mail"].get("enabled"):
             return
-        if self.async_mail:   # an SMTP timeout must not delay the next sample
-            threading.Thread(target=notify.send, args=(mail_cfg, self.secrets, subject, body), daemon=True).start()
-        else:
-            notify.send(mail_cfg, self.secrets, subject, body)
+        mailqueue.add(self.con, subject, body)
+        self._kick_mail()
+
+    def _kick_mail(self):
+        self.mailer.kick(self.cfg["mail"], self.secrets, wait=not self.async_mail)
 
     def _on_open(self, inc, obs, cause):
         due, cause = alerts.should_alert(inc, obs.ts, alerts.rules(self.cfg["mail"]))
@@ -127,8 +134,8 @@ class Engine:
             detail += f" -- {note}"
         inc_id = store.insert_incident(self.con, inc, cause, detail, note)
         self.con.commit()
+        mailqueue.retry_now(self.con)       # the connection is back: what is waiting goes now
         if inc["alerted"]:
-            notify.flush_relay_queue()
             self._mail(*narrative.close_report(self.con, inc_id, cause, inc, ok_since, note, self.chain, self.dns,
                                                self.cfg.get("dashboard_url")))
             self.last_alert_ts = ok_since
@@ -189,6 +196,8 @@ class Engine:
                                     fallback_upstream_cellular=fallback_cell,
                                     ip_changed_recently=ts < self.ip_change_until, **m)
         state = diagnosis.classify(obs, self.cfg["thresholds"])
+        if state in LOAD_STATES and speedtest.running(self.con, ts):
+            state = "OK"    # the speed test the user asked for fills the line: its own slowness is not an event
 
         rx_bps = tx_bps = None
         rx, tx = wan.get("wan.rx_bytes"), wan.get("wan.tx_bytes")
@@ -209,8 +218,11 @@ class Engine:
             store.maintain(self.con, ts, self.cfg["retention_days"])
             self.last_maintain_ts = ts
             self._check_db_size(ts)
+        if self.cfg["mail"].get("enabled") and mailqueue.due(self.con, time.time()):
+            self._kick_mail()
         if ts - self.summary_check_ts >= SUMMARY_CHECK_EVERY_S:
             self.summary_check_ts = ts
+            self._save_node_status(ts)
             self._maybe_summary(ts)
         if updates.due(self.cfg, ts, self.update_check_ts):
             self.update_check_ts = ts
@@ -219,6 +231,20 @@ class Engine:
             threading.Thread(target=updates.check_and_save, kwargs=dict(kw, now=ts), daemon=True,
                              name="update-check").start()
         return state
+
+    def _save_node_status(self, ts):
+        """What each device's reader says about itself (logged in, paused and why), for the panel, which
+        runs in another process and cannot ask the adapters."""
+        st = {}
+        for n in self.chain.nodes:
+            try:
+                s = n.adapter.status() if n.adapter else {}
+            except Exception:
+                s = {}
+            if s:
+                st[n.id] = s
+        store.set_meta(self.con, NODE_STATUS_META, json.dumps({"ts": ts, "nodes": st}))
+        self.con.commit()
 
     def _maybe_summary(self, ts):
         """The periodic summary, once per scheduled slot. The slot sent last is kept in the database, so a

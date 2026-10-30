@@ -1,4 +1,4 @@
-"""SQLite storage: samples, device facts, incidents, IP changes, hourly roll-ups.
+"""SQLite storage: samples, device facts, incidents, IP changes, hourly roll-ups, mails waiting to go, speed tests.
 
 Nothing here is tied to one network: no vendor-specific
 columns (device data is in node_facts, as facts), no Proxmox tables. Raw samples and facts are
@@ -45,6 +45,12 @@ CREATE TABLE IF NOT EXISTS hourly_stats (
     hour_ts INTEGER PRIMARY KEY, samples_count INTEGER, ok_count INTEGER,
     avg_rtt REAL, min_rtt REAL, max_rtt REAL, avg_loss REAL, max_loss REAL,
     avg_rx_bps REAL, avg_tx_bps REAL, max_rx_bps REAL, max_tx_bps REAL
+);
+CREATE TABLE IF NOT EXISTS outbox (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, created REAL, subject TEXT, body TEXT, attempts INTEGER, next_try REAL
+);
+CREATE TABLE IF NOT EXISTS speedtests (
+    ts REAL PRIMARY KEY, end_ts REAL, down_bps INTEGER, up_bps INTEGER, bytes INTEGER, server TEXT, error TEXT
 );
 CREATE INDEX IF NOT EXISTS incidents_start ON incidents (start_ts);
 CREATE INDEX IF NOT EXISTS node_facts_ts ON node_facts (ts);

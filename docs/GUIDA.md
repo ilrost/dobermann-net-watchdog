@@ -48,13 +48,11 @@ programmi di sistema; il wizard controlla quali mancano e, dopo la tua conferma,
 | gateway e indirizzi | `iproute2` | `iproute` | `iproute2` | `iproute2` |
 | verificare il server di posta | `ca-certificates` | `ca-certificates` | `ca-certificates` | `ca-certificates` |
 | il certificato HTTPS (solo con HTTPS) | `openssl` | `openssl` | `openssl` | `openssl` |
-| la coda delle mail durante i guasti (facoltativo) | `nullmailer` | `nullmailer` | `nullmailer` | `nullmailer` |
 | il nome `dobermann.local` (facoltativo) | `avahi-daemon` `avahi-utils` | `avahi` `avahi-tools` | `avahi` | `avahi` `avahi-utils` |
 
 **Sistemi supportati**: quello provato è Debian 12 (nei container Proxmox). Ubuntu e le altre
 famiglie della tabella usano gli stessi programmi con i nomi indicati e il wizard li riconosce,
-ma non sono ancora state provate. Dove `nullmailer` non c'è, le mail partono via SMTP diretto, senza
-coda. Un sistema **senza systemd** (per esempio Alpine) non è supportato.
+ma non sono ancora state provate. Un sistema **senza systemd** (per esempio Alpine) non è supportato.
 
 ## 2. Installazione con il wizard
 
@@ -121,7 +119,7 @@ storage per il disco. Poi:
 
 - crea un container **non privilegiato** con il modello Debian già presente sull'host (lo scarica
   solo se non ce n'è nessuno), 1 core, 256 MB di memoria, 4 GB di disco, avvio automatico con l'host;
-- ci installa i programmi necessari, compresi nullmailer e avahi;
+- ci installa i programmi necessari, avahi compreso;
 - copia dobermann in `/opt/dobermann` e lo installa con le scelte fatte;
 - stampa l'indirizzo del pannello e l'**impronta SHA-256** del certificato HTTPS: annotala, ti serve al
   primo accesso.
@@ -170,7 +168,9 @@ connessione.
   dall'esterno* (dobermann lo sorveglia con ping e misure verso internet).
 - Il campo **Password** compare solo per gli apparati che con la password danno più dati. È
   facoltativo; alcuni apparati accettano un solo accesso alla volta e dobermann si ritira per qualche
-  minuto quando entri tu.
+  minuto quando entri tu. Sotto il campo il pannello mostra come va la lettura: *con login*, oppure
+  *senza login (in pausa)* con il motivo (password rifiutata, sessione lasciata a chi usa la pagina
+  dell'apparato). Un modem ZTE 4G/5G con la password aggiunge ai referti la cella, la banda e il SINR.
 
 Sotto la catena dobermann scrive il **tipo di linea**: *radio* (l'ultimo apparato, quello più vicino a
 internet, è un modem 4G/5G) oppure *cablata* (fibra, DSL, cavo). Solo con linea radio compaiono il
@@ -185,7 +185,6 @@ In **Impostazioni → Notifiche email**:
 | Invia le notifiche | spunta per attivarle |
 | Destinatario | l'indirizzo dove vuoi ricevere le mail |
 | Mittente | lascialo vuoto: viene usato l'utente SMTP (molti fornitori, Gmail compreso, accettano solo quello) |
-| Invio tramite | **Relay locale (consigliato)**: le mail scritte mentre internet è giù restano in coda e partono appena torna. **SMTP diretto**: dobermann parla da solo con il fornitore, senza coda |
 | SMTP: server, porta, sicurezza, utente, password | i dati SMTP del tuo fornitore di posta (nelle sue istruzioni per Outlook/Thunderbird, alla voce "server in uscita") |
 
 Poi:
@@ -194,6 +193,12 @@ Poi:
    sbagliato si vede subito. Se fallisce, il pannello scrive il motivo (server non trovato, porta o
    sicurezza sbagliate, password rifiutata…);
 2. se la mail arriva (guarda anche nello spam la prima volta), premi **Salva**.
+
+Una mail scritta mentre internet (o il fornitore) è giù non si perde: resta nella coda di dobermann,
+viene ritentata ogni pochi minuti e parte appena la connessione torna, prima quella "è giù" e poi
+quella "è tornata". Una mail che non riesce a partire per 7 giorni viene scartata. In cima alla sezione
+il pannello dice quando è stata consegnata l'ultima mail e, se le mail non partono, perché; in quel caso
+compare anche un **mail ✘** rosso in alto in ogni pagina.
 
 La password salvata vale **solo per il server e l'utente con cui l'hai salvata**: se cambi uno dei
 due, il pannello ti chiede di riscriverla. Non viene mai mostrata né rimandata al browser.
@@ -238,7 +243,6 @@ In **Impostazioni → Notifiche email**:
 | Invia le notifiche | ✔ |
 | Destinatario | il tuo indirizzo di tutti i giorni (anche non Gmail) |
 | Mittente | vuoto |
-| Invio tramite | Relay locale (consigliato) |
 | SMTP: server | `smtp.gmail.com` |
 | SMTP: porta | `587` |
 | SMTP: sicurezza | STARTTLS |
@@ -246,8 +250,7 @@ In **Impostazioni → Notifiche email**:
 | SMTP: password | le 16 lettere, **senza spazi** |
 
 Premi **Invia una mail di prova**, controlla che arrivi (la prima volta anche nello spam: segnala "non
-spam"), poi **Salva**. Con il relay locale il pannello scrive i dati anche nella configurazione di
-nullmailer.
+spam"), poi **Salva**.
 
 In alternativa a 587/STARTTLS funziona anche la porta `465` con sicurezza **SSL/TLS**.
 
@@ -309,10 +312,11 @@ dell'ultimo campione; se internet è giù parte (dalla coda) al ritorno della li
 
 ## 10. Il pannello
 
-In alto a destra, su ogni pagina, quattro icone:
+In alto a destra, su ogni pagina, cinque icone:
 
 - **lingua** (il globo): italiano, inglese, spagnolo, tedesco, francese. La scelta vale per il pannello
   e per le mail;
+- **test di velocità** (il tachimetro): vedi sotto;
 - **impostazioni** (l'ingranaggio);
 - **utente**: da quando sei collegato, *Cambia password*, *Esci da tutti i dispositivi* (utile se hai
   aperto il pannello su un computer che non è tuo);
@@ -324,11 +328,27 @@ Le pagine:
   cambi di IP. Si aggiorna da solo; il cursore in alto cambia l'intervallo delle misure.
 - **Storico**: giorno, settimana, mese, anno; clic su un incidente per vederlo sul grafico.
 - **Esporta**: i campioni o i riepiloghi orari in CSV.
+- **Registro dei disservizi** (link in fondo allo Storico): le interruzioni di un mese con inizio,
+  fine, durata e causa rilevata, la disponibilità, l'interruzione più lunga e come sono state fatte le
+  misure. È fatto per essere stampato o salvato in PDF (**Stampa o salva PDF**) e allegato a un reclamo
+  all'operatore; c'è anche in CSV. Di base elenca solo le interruzioni; può includere tutti gli eventi
+  e saltare quelli più brevi.
 - **Impostazioni**: catena, notifiche, quando avvisare, misure (server di riferimento, DNS, soglie,
   giorni di conservazione dei campioni: gli incidenti e i riepiloghi orari restano per sempre),
   indirizzo di dobermann, aggiornamenti, password del pannello.
 
 Le modifiche si applicano al campione successivo, senza riavviare nulla.
+
+### Test di velocità
+
+L'icona del tachimetro apre il test di velocità. **Parte solo quando premi Avvia il test**, mai da
+solo: su una linea mobile ogni test consuma dati (scegli tu quanti: 10, 25 o 100 MB in download, un
+quinto in upload) e per una ventina di secondi occupa la linea per tutta la casa. Il server è quello
+pubblico di Cloudflare, che vede il tuo IP pubblico come qualsiasi sito; un altro si imposta in
+`config.json` alla voce `speedtest` (`download_url` con `{bytes}`, `upload_url`). Accanto a download e
+upload la pagina mostra la latenza misurata dai ping di dobermann, a riposo (il minuto prima) e sotto
+carico (durante il test): una grande differenza vuol dire che la linea, quando è piena, rallenta tutto.
+Durante il test la lentezza che il test stesso provoca non viene registrata come evento.
 
 ## 11. Cambiare l'indirizzo di dobermann
 
@@ -424,8 +444,9 @@ e sceglierla dal browser con il codice che stampa. Le altre impostazioni restano
 - **Password del pannello**: in `/etc/dobermann/admin.json`, non in chiaro ma come impronta (PBKDF2).
   Il wizard la riceve solo dalla tastiera (o dallo standard input) e non la scrive da nessun'altra parte.
 - **Password SMTP e degli apparati**: in `/etc/dobermann/secrets.json`, leggibile solo dall'utente
-  `dobermann`. Con il relay locale, la password SMTP è anche in `/etc/nullmailer/remotes` (leggibile
-  solo da `dobermann` e da nullmailer), perché nullmailer deve poterla usare.
+  `dobermann`. Le versioni prima della 0.2 scrivevano la password SMTP anche in
+  `/etc/nullmailer/remotes`, per un relay locale che dobermann non usa più: dopo l'aggiornamento puoi
+  cancellare quel file (o togliere nullmailer).
 - Le password **non vengono mai** rimandate al browser, scritte nei registri o nelle mail.
 - Servono in chiaro per essere usate: chi è amministratore del container o dell'host Proxmox può
   leggerle, e sono nei backup del container. Per questo conviene una password per app dedicata e

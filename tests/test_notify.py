@@ -6,7 +6,7 @@ from unittest import mock
 
 from dobermann import notify
 
-GMAIL = {"to": "me@example.org", "transport": "smtp",
+GMAIL = {"to": "me@example.org",
          "smtp": {"host": "smtp.gmail.com", "port": 587, "security": "starttls", "username": "sender@example.com"}}
 
 
@@ -70,10 +70,9 @@ class TestNotify(unittest.TestCase):
             self.assertIn(expect, why, (stage, err))
         self.assertNotIn("password per app", notify.explain("login", smtplib.SMTPServerDisconnected(), "smtp.example.org"))
 
-    def test_send_never_raises(self):
+    def test_deliver_never_raises(self):
         FakeSmtp.fail_at, FakeSmtp.error = "connect", OSError("boom")
-        with mock.patch("builtins.print"):
-            self.assertFalse(notify.send(GMAIL, {}, "s", "b"))
+        self.assertEqual(notify.deliver(GMAIL, {}, "s", "b"), (False, "OSError: boom"))
 
 
 if __name__ == "__main__":
@@ -82,6 +81,6 @@ if __name__ == "__main__":
 
 class TestHeaderSafety(unittest.TestCase):
     def test_a_line_break_in_a_header_is_refused_before_anything_is_sent(self):
-        ok, why = notify.deliver({"to": "a@example.org\nBcc: x@example.org", "transport": "relay"}, {}, "s", "b")
+        ok, why = notify.deliver({"to": "a@example.org\nBcc: x@example.org"}, {}, "s", "b")
         self.assertFalse(ok)
         self.assertIn("a capo", why)

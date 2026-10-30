@@ -8,7 +8,6 @@ No Python package is needed: dobermann uses the standard library only. These are
   ip               the gateway and this machine's addresses
   openssl          the panel's HTTPS certificate                    (only with HTTPS)
   ca-certificates  checking the mail provider's certificate
-  nullmailer       the mail queue while the internet is down        (optional: without it, direct SMTP)
   avahi            the name dobermann.local on the home network     (only with the local name)
 
 systemd is required too, but it is not a package one installs: a system without it is not supported.
@@ -21,21 +20,22 @@ import subprocess
 MANAGERS = {
     "apt": (["apt-get", "install", "-y", "--no-install-recommends"], {
         "python3": ["python3"], "ping": ["iputils-ping"], "ip": ["iproute2"], "openssl": ["openssl"],
-        "ca-certificates": ["ca-certificates"], "nullmailer": ["nullmailer"],
+        "ca-certificates": ["ca-certificates"],
         "avahi": ["avahi-daemon", "avahi-utils"]}),
     "dnf": (["dnf", "install", "-y"], {
         "python3": ["python3"], "ping": ["iputils"], "ip": ["iproute"], "openssl": ["openssl"],
-        "ca-certificates": ["ca-certificates"], "nullmailer": ["nullmailer"],
+        "ca-certificates": ["ca-certificates"],
         "avahi": ["avahi", "avahi-tools"]}),
     "pacman": (["pacman", "-S", "--needed", "--noconfirm"], {
         "python3": ["python"], "ping": ["iputils"], "ip": ["iproute2"], "openssl": ["openssl"],
-        "ca-certificates": ["ca-certificates"], "nullmailer": ["nullmailer"], "avahi": ["avahi"]}),
+        "ca-certificates": ["ca-certificates"], "avahi": ["avahi"]}),
     "zypper": (["zypper", "--non-interactive", "install"], {
         "python3": ["python3"], "ping": ["iputils"], "ip": ["iproute2"], "openssl": ["openssl"],
-        "ca-certificates": ["ca-certificates"], "nullmailer": ["nullmailer"],
+        "ca-certificates": ["ca-certificates"],
         "avahi": ["avahi", "avahi-utils"]}),
 }
 REQUIRED = ("python3", "ping", "ip", "ca-certificates")
+OPTIONAL = ()       # none at the moment; install() keeps the way to have one
 CA_BUNDLES = ("/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt",
               "/etc/ssl/ca-bundle.pem", "/etc/ssl/cert.pem")
 
@@ -45,7 +45,6 @@ def wanted(https=True, mdns=True):
     out = list(REQUIRED)
     if https:
         out.append("openssl")
-    out.append("nullmailer")
     if mdns:
         out.append("avahi")
     return out
@@ -53,7 +52,7 @@ def wanted(https=True, mdns=True):
 
 def optional(dep):
     """A dependency whose absence is a warning, not a stop."""
-    return dep == "nullmailer"
+    return dep in OPTIONAL
 
 
 def present(dep, which=shutil.which, exists=os.path.exists):
@@ -61,8 +60,6 @@ def present(dep, which=shutil.which, exists=os.path.exists):
         return which("python3") is not None
     if dep == "ca-certificates":
         return any(exists(p) for p in CA_BUNDLES)
-    if dep == "nullmailer":
-        return exists("/usr/sbin/nullmailer-send") or which("nullmailer-send") is not None
     if dep == "avahi":
         return (which("avahi-daemon") is not None or exists("/usr/sbin/avahi-daemon")) and \
             which("avahi-publish-address") is not None
@@ -96,8 +93,8 @@ def install_command(deps, mgr):
 
 def install(deps, mgr, run=subprocess.run):
     """Installs the packages of `deps`, the optional ones one by one so that a package this distribution
-    does not have (nullmailer is not everywhere) does not stop the others. Returns the deps that failed."""
-    env = dict(os.environ, DEBIAN_FRONTEND="noninteractive")   # nullmailer's installer would ask questions
+    does not have does not stop the others. Returns the deps that failed."""
+    env = dict(os.environ, DEBIAN_FRONTEND="noninteractive")   # no installer may stop to ask a question
     if mgr == "apt":
         run(["apt-get", "update", "-q"], env=env, check=False, capture_output=True)
     failed = []

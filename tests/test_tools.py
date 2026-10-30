@@ -18,8 +18,7 @@ class TestInstall(unittest.TestCase):
     @staticmethod
     def args(tmp, *extra):
         return install.parser().parse_args(["--config-dir", os.path.join(tmp, "etc"), "--state-dir", os.path.join(tmp, "var"),
-                                            "--systemd-dir", tmp, "--bin-path", os.path.join(tmp, "dobermann"),
-                                            "--nullmailer-remotes", os.path.join(tmp, "remotes"), *extra])
+                                            "--systemd-dir", tmp, "--bin-path", os.path.join(tmp, "dobermann"), *extra])
 
     def test_an_update_keeps_the_choices_of_the_install(self):
         saved = {"https": False, "name": "dobermann.local", "bind": "192.0.2.5"}

@@ -6,6 +6,9 @@
   /report           history: ?period=day|week|month|year, ?date=YYYY-MM-DD for a day
   /setup            settings: notifications, chain of devices, measurements, admin password
   /export           CSV of raw samples or hourly roll-ups (?table=samples|hourly&from=&to=)
+  /speed            the speed test, only when asked (POST size=MB); the latest results
+  /dossier          the month's outages for the operator, to print (?month=YYYY-MM&scope=outages|all&min=s);
+                    /dossier.csv the same rows
   /api/samples      raw samples for the charts' deep zoom (?from=&to= epoch, at most 6 h)
   /api/interval     GET / POST {"interval": N} the sampling interval (1-60 s)
   /login, /logout   one admin password; the first visit asks to choose it
@@ -29,10 +32,10 @@ import urllib.parse
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from dobermann import __version__, adapters, alerts, config, discover, i18n, notify, relay, updates
+from dobermann import __version__, adapters, alerts, config, discover, i18n, mailqueue, notify, speedtest, store, updates
 from dobermann.chain import Chain
 from dobermann.i18n import _
-from dobermann.web import address, auth, listen, report
+from dobermann.web import address, auth, dossier, listen, report
 
 TEMPLATES = os.path.join(os.path.dirname(__file__), "templates")
 TOOLS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "tools")
@@ -73,9 +76,86 @@ def toolbar(token=None, here="/watchdash"):
     if st.get("newer"):
         upd = (f'<a href="/setup#updates" class="upd" title="{esc(_("Nuova versione disponibile: {v}", v=st["latest"]))}">'
                f'{esc(st["latest"])}</a>')
+    warn = ""
+    if mail_trouble(mail_status()):
+        warn = (f'<a href="/setup#mail" class="upd warn" title="{esc(_("Le mail non partono: dettagli nelle impostazioni"))}">'
+                f'{esc(_("mail"))} ✘</a>')
     started = auth.session_started(token)
     since = _("collegato dal {v}", v=datetime.fromtimestamp(started).strftime("%d/%m/%Y %H:%M")) if started else ""
-    return _fill(_tpl("toolbar.html"), {"__LANG_ITEMS__": "".join(items), "__SINCE__": esc(since), "__UPDATE__": upd})
+    return _fill(_tpl("toolbar.html"), {"__LANG_ITEMS__": "".join(items), "__SINCE__": esc(since), "__UPDATE__": warn + upd})
+
+
+def mail_status():
+    """The mail queue's state (mailqueue.status), or None when the database cannot be read."""
+    try:
+        con = report._connect()
+        try:
+            return mailqueue.status(con)
+        finally:
+            con.close()
+    except Exception:
+        return None
+
+
+def mail_trouble(st, now=None):
+    """True when mails are not going out: one waiting for more than 10 minutes, or a failure after the
+    last delivery (in the last week)."""
+    if not st:
+        return False
+    now = time.time() if now is None else now
+    if st["waiting"] and st["oldest"] is not None and now - st["oldest"] > 600:
+        return True
+    err = st["last_error"]
+    return bool(err and now - err[0] < 7 * 86400 and (st["last_ok"] is None or err[0] > st["last_ok"]))
+
+
+def _mbps(bps):
+    return "—" if bps is None else f"{bps / 1e6:.1f} Mbit/s"
+
+
+def render_speed(token=None, banner=None, error=False):
+    try:
+        con = report._connect()
+        try:
+            past = speedtest.history(con)
+        finally:
+            con.close()
+    except Exception:
+        past = []
+    rows = []
+    for t in past:
+        when = datetime.fromtimestamp(t["ts"]).strftime("%d/%m/%Y %H:%M")
+        lat = "—" if t["idle_ms"] is None else f'{t["idle_ms"]:.0f} ms'
+        if t["loaded_ms"] is not None:
+            lat += f' → {t["loaded_ms"]:.0f} ms'
+        res = (f'<td class="num">{esc(_mbps(t["down_bps"]))}</td><td class="num">{esc(_mbps(t["up_bps"]))}</td>'
+               f'<td class="num">{esc(lat)}</td><td class="num">{t["bytes"] / 1e6:.0f} MB</td>')
+        if t["error"]:
+            res += f'<td>{esc(t["error"])}</td>'
+        else:
+            res += f'<td>{esc(t["server"])}</td>'
+        rows.append(f"<tr><td>{esc(when)}</td>{res}</tr>")
+    table = (f"""<table class="events"><thead><tr><th>{esc(_("Quando"))}</th><th>{esc(_("Download"))}</th>
+<th>{esc(_("Upload"))}</th><th>{esc(_("Latenza (a riposo → sotto carico)"))}</th><th>{esc(_("Dati usati"))}</th>
+<th>{esc(_("Server"))}</th></tr></thead><tbody>{"".join(rows)}</tbody></table>""" if rows else
+             f'<p class="hint">{esc(_("Nessun test ancora."))}</p>')
+    sizes = "".join(f'<option value="{mb}"{" selected" if mb == 25 else ""}>{esc(_("{d} MB in download, {u} MB in upload", d=mb, u=mb // 5))}</option>'
+                    for mb in speedtest.SIZES_MB)
+    banner_html = f'<div class="banner{" error" if error else ""}">{esc(banner)}</div>' if banner else ""
+    down_url, _up = speedtest.urls(config.load())
+    body = f"""<h1>{esc(_("Test di velocità"))}</h1>
+<p class="hint">{esc(_("Parte solo quando lo chiedi tu. Su una linea mobile consuma i dati indicati e, per una ventina di "
+                       "secondi, occupa la linea per tutta la casa. Server: {v} (vede l'IP pubblico di questa linea, come "
+                       "qualsiasi sito). Durante il test dobermann non registra come eventi la lentezza che il test stesso "
+                       "provoca.", v=urllib.parse.urlparse(down_url).hostname))}</p>
+{banner_html}
+<form class="controls" method="post" action="/speed" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='{esc(_("Test in corso…"))}'">
+  <label>{esc(_("Quanti dati usare"))} <select name="size">{sizes}</select></label>
+  <button type="submit">{esc(_("Avvia il test"))}</button>
+</form>
+<h2>{esc(_("Test fatti"))}</h2>
+<div class="events-wrap">{table}</div>"""
+    return _fill(_tpl("speed.html"), {"__TOOLBAR__": toolbar(token, "/speed"), "__BODY__": body})
 
 
 def render_data_page(name, data, token=None, here="/watchdash"):
@@ -104,44 +184,51 @@ def _valid_ip(s):
 
 # --- settings page ------------------------------------------------------------------------------
 
+def _when(ts):
+    return datetime.fromtimestamp(ts).strftime("%d/%m/%Y %H:%M")
+
+
+def _mail_state_html(st):
+    if not st:
+        return ""
+    lines = []
+    if st["waiting"]:
+        lines.append(_("{n} mail in attesa di partire (la più vecchia del {v}): dobermann riprova da solo, e subito "
+                       "quando la connessione torna.", n=st["waiting"], v=_when(st["oldest"])))
+    if st["last_ok"]:
+        lines.append(_("Ultima mail consegnata: {v}.", v=_when(st["last_ok"])))
+    err = st["last_error"]
+    if err and (st["last_ok"] is None or err[0] > st["last_ok"]):
+        lines.append(_("Ultimo errore ({when}): {why}", when=_when(err[0]), why=err[1]))
+    if st["dropped"]:
+        lines.append(_("Mail scartate perché non consegnate per 7 giorni: {v}.", v=st["dropped"]))
+    if not lines:
+        return ""
+    cls = "banner error" if mail_trouble(st) else "note"
+    return f'<div class="{cls}">' + "<br>".join(esc(x) for x in lines) + "</div>"
+
+
 def _mail_section(cfg, secrets):
     m = cfg["mail"]
     has_pw = bool((secrets.get("mail") or {}).get("password"))
     smtp = m.get("smtp", {})
-    relay_note = {
-        "nullmailer": _("Su questa macchina c'è nullmailer: dobermann gli scrive i dati del fornitore qui sotto quando "
-                        "salvi."),
-        "postfix": _("Su questa macchina c'è Postfix: l'inoltro al fornitore si configura in Postfix, i dati qui sotto "
-                     "servono solo alla mail di prova."),
-        "other": _("Su questa macchina c'è un server di posta (comando sendmail): l'inoltro al fornitore si configura "
-                   "lì, i dati qui sotto servono solo alla mail di prova."),
-        None: _("<b>Su questa macchina non c'è un server di posta</b>: installa nullmailer (poi rilancia il wizard) "
-                "oppure scegli SMTP diretto."),
-    }[relay.detect()]
 
     def sel(cond):
         return "selected" if cond else ""
     return f"""
-<section>
+<section id="mail">
   <h2>{esc(_("Notifiche email"))}</h2>
-  <p class="hint">{_("dobermann manda una mail quando la connessione si interrompe e quando torna. <b>Relay locale</b> "
-                     "(consigliato): un piccolo server di posta su questa stessa macchina tiene in coda le mail scritte "
-                     "mentre internet è giù e le inoltra al tuo fornitore di posta appena torna. <b>SMTP diretto</b>: "
-                     "dobermann parla direttamente con il server del fornitore, senza coda. In entrambi i casi servono i "
-                     "dati SMTP del fornitore (nelle sue istruzioni per i programmi di posta; per Gmail serve una "
-                     "password per app).")}</p>
+  {_mail_state_html(mail_status())}
+  <p class="hint">{_("dobermann manda una mail quando la connessione si interrompe e quando torna, tramite il server "
+                     "SMTP del tuo fornitore di posta (i dati sono nelle sue istruzioni per i programmi di posta; per "
+                     "Gmail serve una password per app). Una mail scritta mentre internet è giù resta in coda e parte "
+                     "appena la connessione torna.")}</p>
   <form method="post" action="/setup">
     <label class="check"><input type="checkbox" name="enabled" value="1" {"checked" if m.get("enabled") else ""}> {esc(_("Invia le notifiche"))}</label>
     <label for="to">{esc(_("Destinatario"))}</label>
     <input type="email" id="to" name="to" value="{esc(m.get('to'))}">
     <label for="from">{esc(_("Mittente"))}</label>
     <input type="text" id="from" name="from" value="{esc(m.get('from'))}" placeholder="{esc(_("vuoto: uguale all'utente SMTP"))}">
-    <label for="transport">{esc(_("Invio tramite"))}</label>
-    <select id="transport" name="transport">
-      <option value="relay" {sel(m.get('transport') != 'smtp')}>{esc(_("Relay locale (consigliato)"))}</option>
-      <option value="smtp" {sel(m.get('transport') == 'smtp')}>{esc(_("SMTP diretto"))}</option>
-    </select>
-    <div class="note relay-only">{relay_note}</div>
     <div class="row">
       <div><label for="smtp_host">{esc(_("SMTP: server"))}</label><input type="text" id="smtp_host" name="smtp_host" value="{esc(smtp.get('host'))}" placeholder="{esc(_("es. smtp.tuofornitore.it"))}"></div>
       <div><label for="smtp_port">{esc(_("SMTP: porta"))}</label><input type="number" id="smtp_port" name="smtp_port" value="{esc(smtp.get('port', 587))}"></div>
@@ -159,19 +246,8 @@ def _mail_section(cfg, secrets):
     <p></p>
     <button type="submit" name="action" value="save_mail">{esc(_("Salva"))}</button>
     <button type="submit" name="action" value="test_mail" class="secondary">{esc(_("Invia una mail di prova"))}</button>
-    <div class="note">{esc(_("La prova usa i valori scritti qui sopra, senza salvarli, e si collega direttamente al server "
-                             "del fornitore anche con il relay: così un errore nei dati si vede subito, invece di restare "
-                             "in coda."))}</div>
+    <div class="note">{esc(_("La prova usa i valori scritti qui sopra, senza salvarli."))}</div>
   </form>
-  <script>
-  (function(){{
-    const t = document.getElementById('transport');
-    function sync(){{
-      document.querySelectorAll('.relay-only').forEach(e => e.style.display = t.value === 'relay' ? '' : 'none');
-    }}
-    t.addEventListener('change', sync); sync();
-  }})();
-  </script>
 </section>"""
 
 
@@ -234,8 +310,23 @@ def _alerts_section(cfg, radio):
 </section>"""
 
 
+def node_status():
+    """{node id: {label: value}} as the engine last wrote it (engine.NODE_STATUS_META), if recent."""
+    try:
+        con = report._connect()
+        try:
+            row = con.execute("SELECT value FROM meta WHERE key='node_status'").fetchone()
+        finally:
+            con.close()
+        data = json.loads(row[0]) if row else {}
+        return (data.get("nodes") or {}) if time.time() - data.get("ts", 0) < 600 else {}
+    except Exception:
+        return {}
+
+
 def _chain_section(chain_spec, secrets):
     nodes = chain_spec.get("nodes", [])
+    states = node_status()
     rows = []
     for n in nodes:
         cls = adapters.get(n.get("adapter")) if n.get("adapter") else None
@@ -251,6 +342,9 @@ def _chain_section(chain_spec, secrets):
             has = bool((secrets.get("devices", {}).get(n["id"]) or {}).get("password"))
             hint = _("impostata: vuoto per non cambiarla") if has else _("facoltativa")
             pw = f'<input type="password" name="pw_{esc(n["id"])}" autocomplete="new-password" placeholder="{esc(hint)}">'
+            st = states.get(n["id"])
+            if isinstance(st, dict) and st:
+                pw += '<div class="note">' + esc(" · ".join(f"{k}: {v}" for k, v in st.items())) + "</div>"
         rows.append(f"""<tr>
   <td><input type="text" name="label_{esc(n['id'])}" value="{esc(n.get('label'))}"></td>
   <td><code>{esc(n.get('ip'))}</code></td>
@@ -443,7 +537,7 @@ def _int(form, name, lo, hi):
 
 def _stored_mail_password(cfg, secrets, mail):
     """The saved SMTP password, but only for the server and user it was saved with. Otherwise None: a
-    changed server field must never receive it (a test mail, or nullmailer, would hand it over)."""
+    changed server field must never receive it (a test mail would hand it over)."""
     old, new = cfg["mail"].get("smtp", {}), mail.get("smtp", {})
     same = ((old.get("host") or "").strip().lower() == (new.get("host") or "").strip().lower()
             and (old.get("username") or "").strip() == (new.get("username") or "").strip())
@@ -457,10 +551,11 @@ def _mail_from_form(form, cfg):
     if security not in ("starttls", "ssl", "none"):
         raise FormError(_("sicurezza SMTP non valida"))
     m = dict(cfg["mail"])
-    m.update(enabled=f("enabled") == "1", to=f("to"), transport="smtp" if f("transport") == "smtp" else "relay",
+    m.update(enabled=f("enabled") == "1", to=f("to"),
              smtp={"host": f("smtp_host"), "port": _int(form, "smtp_port", 1, 65535), "security": security,
                    "username": f("smtp_username")})
     m.pop("relay", None)
+    m.pop("transport", None)      # from the versions that also had a local relay
     m["from"] = f("from")
     if any(c in m["to"] + m["from"] + m["smtp"]["username"] for c in "\r\n"):
         raise FormError(_("destinatario, mittente o oggetto contengono un a capo."))
@@ -652,6 +747,29 @@ class Handler(BaseHTTPRequestHandler):
             self._json(report.fine_samples(a, b))
         elif path == "/api/interval":
             self._json({"interval": config.load()["interval_s"], "min": 1, "max": 60})
+        elif path == "/speed":
+            self._send(render_speed(self._token()))
+        elif path in ("/dossier", "/dossier.csv"):
+            month = qs.get("month", [datetime.now().strftime("%Y-%m")])[0]
+            scope = qs.get("scope", ["outages"])[0]
+            try:
+                dossier.month_bounds(month)
+                min_s = max(0, min(86400, int(qs.get("min", ["0"])[0])))
+            except ValueError:
+                self._send(_("mese non valido (AAAA-MM)"), "text/plain; charset=utf-8", 400)
+                return
+            d = dossier.build(month, scope if scope in dossier.SCOPES else "outages", min_s)
+            if path == "/dossier.csv":
+                cols, rows = dossier.csv_rows(d)
+                buf = io.StringIO()
+                w = csv.writer(buf)
+                w.writerow(cols)
+                w.writerows(rows)
+                self._send(buf.getvalue(), "text/csv; charset=utf-8",
+                           headers=[("Content-Disposition", f'attachment; filename="dobermann-{month}.csv"')])
+            else:
+                self._send(_fill(_tpl("dossier.html"), {"__TOOLBAR__": toolbar(self._token(), self.path),
+                                                        "__BODY__": dossier.render(d)}))
         elif path == "/export":
             table = qs.get("table", ["samples"])[0]
             if table not in report.EXPORT_QUERIES:
@@ -698,6 +816,8 @@ class Handler(BaseHTTPRequestHandler):
                     config.save(raw)
             nxt = form.get("next", ["/watchdash"])[0]
             self._redirect(nxt if _SAFE_NEXT.match(nxt) else "/watchdash")
+        elif path == "/speed":
+            self._post_speed()
         elif path == "/logout":
             auth.destroy_session(self._token())
             self._redirect("/login", clear=True)
@@ -751,6 +871,26 @@ class Handler(BaseHTTPRequestHandler):
             time.sleep(1)   # slows down guessing
             self._login_page(_("Password errata."), 401)
 
+    def _post_speed(self):
+        try:
+            size = int(self._form().get("size", ["0"])[0])
+        except ValueError:
+            size = 0
+        try:
+            con = store.connect(config.db_file())
+            try:
+                res = speedtest.run(con, config.load(), size)
+            finally:
+                con.close()
+        except (speedtest.Busy, ValueError) as e:
+            self._send(render_speed(self._token(), str(e), error=True), status=409)
+            return
+        if res["error"]:
+            self._send(render_speed(self._token(), _("Test non riuscito: {v}", v=res["error"]), error=True))
+        else:
+            self._send(render_speed(self._token(), _("Download {d}, upload {u}.", d=_mbps(res["down_bps"]),
+                                                     u=_mbps(res["up_bps"]))))
+
     def _post_setup(self):
         form = self._form()
         action = form.get("action", [""])[0]
@@ -784,28 +924,14 @@ class Handler(BaseHTTPRequestHandler):
                                   "per il server e l'utente con cui è stata salvata)"))
             if action == "test_mail":
                 test_secrets = {"mail": {"password": pw or stored}}
-                ok, why = notify.deliver(dict(mail, enabled=True, transport="smtp"), test_secrets,
+                ok, why = notify.deliver(dict(mail, enabled=True), test_secrets,
                                          "[dobermann] " + _("Mail di prova"),
                                          _("Se leggi questo messaggio, le notifiche di dobermann arrivano."))
                 if not ok:
                     print(_("mail di prova fallita: {v}", v=why), flush=True)
                 return (_("Mail di prova inviata: controlla la casella (e lo spam).") if ok else
                         _("Invio fallito:") + f" {why}"), (), None
-            password = pw or stored
             msg = _("Notifiche salvate.")
-            if mail["transport"] == "relay":
-                kind = relay.detect()
-                if kind == "nullmailer":
-                    try:
-                        relay.configure_nullmailer(mail["smtp"], password)
-                    except ValueError as e:
-                        raise FormError(str(e)) from None
-                    except OSError as e:
-                        raise FormError(_("non posso scrivere la configurazione di nullmailer ({v}): rilancia il wizard "
-                                          "come root", v=e.strerror)) from None
-                    msg = _("Notifiche salvate, nullmailer configurato.")
-                elif kind is None:
-                    msg = _("Notifiche salvate, ma su questa macchina non c'è un server di posta: le mail non partiranno.")
             raw["mail"] = mail
             config.save(raw)
             if pw:

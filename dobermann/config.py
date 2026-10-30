@@ -34,9 +34,6 @@ DEFAULTS = {
         "enabled": False,
         "to": "",
         "from": "",
-        # "relay": a local mail server (nullmailer) queues and forwards to the provider;
-        # "smtp": dobermann talks to the provider's server itself. "smtp" below is the provider, for both.
-        "transport": "relay",
         "smtp": {"host": "", "port": 587, "security": "starttls", "username": ""},
         "cooldown_s": 300,
     },

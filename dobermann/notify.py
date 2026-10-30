@@ -1,14 +1,15 @@
 """Email: the only notification channel.
 
-Two transports, chosen in config.json -> mail.transport:
-  relay  a mail server on this machine (nullmailer in the CT, see relay.py) takes the message with its
-         `sendmail` command, queues it and forwards it to the provider. Recommended: a mail written
-         while the internet is down waits in its queue instead of being lost.
-  smtp   dobermann talks to the provider's server itself (host, port, STARTTLS/SSL, login).
-The provider's details are in config.json -> mail.smtp for both; the password in secrets.json ->
-mail.password, never in config.json.
+dobermann talks to the provider's SMTP server itself (host, port, STARTTLS/SSL, login): config.json ->
+mail.smtp, the password in secrets.json -> mail.password, never in config.json. The engine's mails go
+through mailqueue.py, which keeps them in the database while the internet (or the provider) is down
+and tries again; the test mail from the panel goes straight here.
 
-send() never raises and has a short timeout: reporting an outage must not stall the measurements.
+There used to be a second transport, a local relay (nullmailer) fed through its `sendmail` command. It
+cannot work under the services' NoNewPrivileges (its queue is written by a setuid helper, which that
+setting disarms), and dobermann's own queue does what it was there for.
+
+deliver() never raises and has a short timeout: reporting an outage must not stall the measurements.
 The message texts are built in narrative.py (incidents) and alerts.py (the summary).
 """
 import smtplib
@@ -17,7 +18,6 @@ import ssl
 from email.mime.text import MIMEText
 from email.utils import formatdate, make_msgid
 
-from dobermann import relay
 from dobermann.i18n import _
 
 
@@ -58,7 +58,7 @@ def explain(stage, exc, host=""):
 
 
 def deliver(mail_cfg, secrets, subject, body):
-    """(True, None) if the message was handed over (to the relay or the provider), else (False, why)."""
+    """(True, None) if the provider took the message, else (False, why)."""
     to_addr, from_addr = mail_cfg.get("to"), sender(mail_cfg)
     if not to_addr:
         return False, _("manca il destinatario.")
@@ -68,12 +68,10 @@ def deliver(mail_cfg, secrets, subject, body):
     msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"], msg["From"], msg["To"] = subject, from_addr, to_addr
     msg["Date"], msg["Message-ID"] = formatdate(localtime=True), make_msgid(domain="dobermann.local")
-    if mail_cfg.get("transport") != "smtp":
-        try:
-            ok = relay.submit(msg.as_bytes(), from_addr, to_addr)
-        except Exception as e:
-            return False, _("il server di posta locale non ha accettato la mail ({v}).", v=f"{type(e).__name__}: {e}")
-        return (True, None) if ok else (False, _("il server di posta locale non ha accettato la mail (dettagli nel log)."))
+    return _smtp(mail_cfg, secrets, lambda s: s.sendmail(from_addr, [to_addr], msg.as_string()))
+
+
+def _smtp(mail_cfg, secrets, action):
     s_cfg = mail_cfg.get("smtp") or {}
     host, stage = s_cfg.get("host"), "connect"
     try:
@@ -89,25 +87,10 @@ def deliver(mail_cfg, secrets, subject, body):
                 stage = "login"
                 s.login(s_cfg["username"], password)
             stage = "send"
-            s.sendmail(from_addr, [to_addr], msg.as_string())
+            action(s)
             stage = "sent"
         return True, None
     except Exception as e:
         if stage == "sent":
             return True, None      # accepted by the server; only the goodbye (QUIT) failed
         return False, explain(stage, e, host)
-
-
-def send(mail_cfg, secrets, subject, body):
-    """True if the message was handed over. Never raises: the reason for a failure goes to the log."""
-    try:
-        ok, why = deliver(mail_cfg, secrets, subject, body)
-    except Exception as e:
-        ok, why = False, f"{type(e).__name__}: {e}"
-    if not ok:
-        print(_("invio mail fallito: {v}", v=why), flush=True)
-    return ok
-
-
-def flush_relay_queue():
-    relay.flush()

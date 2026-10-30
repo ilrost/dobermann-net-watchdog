@@ -50,13 +50,11 @@ programs; the wizard checks which ones are missing and, once you confirm, instal
 | gateway and addresses | `iproute2` | `iproute` | `iproute2` | `iproute2` |
 | checking the mail server | `ca-certificates` | `ca-certificates` | `ca-certificates` | `ca-certificates` |
 | the HTTPS certificate (HTTPS only) | `openssl` | `openssl` | `openssl` | `openssl` |
-| the mail queue during outages (optional) | `nullmailer` | `nullmailer` | `nullmailer` | `nullmailer` |
 | the name `dobermann.local` (optional) | `avahi-daemon` `avahi-utils` | `avahi` `avahi-tools` | `avahi` | `avahi` `avahi-utils` |
 
 **Supported systems**: Debian 12 (in Proxmox containers) is the tested one. Ubuntu and the other
 families in the table use the same programs under the names shown, and the wizard knows them,
-but they have not been tried yet. Where `nullmailer` is not available, mail goes out through direct
-SMTP, without a queue. A system **without systemd** (Alpine, for example) is not supported.
+but they have not been tried yet. A system **without systemd** (Alpine, for example) is not supported.
 
 ## 2. Installing with the wizard
 
@@ -122,7 +120,7 @@ gateway and the storage for the disk. Then it:
 
 - creates an **unprivileged** container from the Debian template already on the host (it downloads
   one only if there is none), 1 core, 256 MB of memory, 4 GB of disk, started with the host;
-- installs the programs needed in it, nullmailer and avahi included;
+- installs the programs needed in it, avahi included;
 - copies dobermann into `/opt/dobermann` and installs it with the choices made;
 - prints the panel address and the **SHA-256 fingerprint** of the HTTPS certificate: write it down, you
   need it on the first visit.
@@ -171,6 +169,9 @@ breaks.
   (dobermann watches it with ping and measurements to the internet).
 - The **Password** field appears only for devices that give more data with a password. It is optional;
   some devices accept one login at a time, and dobermann steps back for a few minutes when you log in.
+  Under the field the panel shows how the reading is going: *with login*, or *without login (paused)*
+  with the reason (password refused, session left to whoever is using the device's web page).
+  A ZTE 4G/5G modem with its password adds the serving cell, the band and the SINR to the reports.
 
 Under the chain dobermann shows the **kind of line**: *radio* (the last device, the one closest to the
 internet, is a 4G/5G modem) or *wired* (fibre, DSL, cable). Only with a radio line do the signal chart,
@@ -185,7 +186,6 @@ In **Settings → Email notifications**:
 | Send notifications | tick it to turn them on |
 | Recipient | the address where you want the mails |
 | Sender | leave it empty: the SMTP user is used (many providers, Gmail included, accept only that) |
-| Send through | **Local relay (recommended)**: mails written while the internet is down wait in a queue and go out as soon as it is back. **Direct SMTP**: dobermann talks to the provider by itself, with no queue |
 | SMTP: server, port, security, user, password | your mail provider's SMTP details (in its instructions for Outlook/Thunderbird, under "outgoing server") |
 
 Then:
@@ -194,6 +194,12 @@ Then:
    at once. If it fails, the panel says why (server not found, wrong port or security, password
    refused…);
 2. if the mail arrives (the first time, look in the spam folder too), press **Save**.
+
+A mail written while the internet (or the provider) is down is not lost: it waits in dobermann's own
+queue, is tried again every few minutes and goes out as soon as the connection is back, the "it is
+down" mail before the "it is back" one. A mail that cannot go out for 7 days is dropped. At the top of
+the section the panel says when the last mail was delivered and, if mails are not going out, why; in
+that case a red **mail ✘** also appears at the top of every page.
 
 The saved password is valid **only for the server and user it was saved with**: if you change either,
 the panel asks you to type it again. It is never shown or sent back to the browser.
@@ -238,7 +244,6 @@ In **Settings → Email notifications**:
 | Send notifications | ✔ |
 | Recipient | your everyday address (it need not be Gmail) |
 | Sender | empty |
-| Send through | Local relay (recommended) |
 | SMTP: server | `smtp.gmail.com` |
 | SMTP: port | `587` |
 | SMTP: security | STARTTLS |
@@ -246,8 +251,7 @@ In **Settings → Email notifications**:
 | SMTP: password | the 16 letters, **without spaces** |
 
 Press **Send a test mail**, check that it arrives (the first time look in the spam folder too, and mark
-it "not spam"), then **Save**. With the local relay the panel also writes the details into nullmailer's
-configuration.
+it "not spam"), then **Save**.
 
 Instead of 587/STARTTLS, port `465` with **SSL/TLS** security works too.
 
@@ -310,10 +314,11 @@ is back.
 
 ## 10. The panel
 
-At the top right of every page there are four icons:
+At the top right of every page there are five icons:
 
 - **language** (the globe): English, Italian, Spanish, German, French. The choice is used by the panel
   and by the mails;
+- **speed test** (the gauge): see below;
 - **settings** (the gear);
 - **user**: since when you are connected, *Change password*, *Log out of every device* (useful if you
   opened the panel on a computer that is not yours);
@@ -325,11 +330,27 @@ The pages:
   changes. It refreshes by itself; the slider at the top changes the measurement interval.
 - **History**: day, week, month, year; click an incident to see it on the chart.
 - **Export**: the samples or the hourly summaries as CSV.
+- **Outage record** (link at the bottom of History): one month's outages with start, end, duration and
+  the cause recorded, the availability, the longest outage and how the measurements were made. Made to
+  be printed or saved as PDF (**Print or save as PDF**) and attached to a complaint to the operator;
+  also as CSV. By default it lists only the outages; it can include every event and skip the shorter
+  ones.
 - **Settings**: chain, notifications, when to be told, measurements (reference servers, DNS,
   thresholds, days the samples are kept: incidents and hourly summaries are kept for good),
   dobermann's address, updates, panel password.
 
 Changes apply from the next sample, without restarting anything.
+
+### Speed test
+
+The gauge icon opens the speed test. It **runs only when you press Start the test**, never on a
+schedule: on a mobile line every test spends data (you choose how much: 10, 25 or 100 MB of download,
+a fifth of that of upload) and, for about twenty seconds, fills the line for the whole home. The server
+is Cloudflare's public speed test, which sees your public IP like any web site; another one can be set
+in `config.json` under `speedtest` (`download_url` with `{bytes}`, `upload_url`). Next to download and
+upload the page shows the latency from dobermann's own pings, idle (the minute before) and under load
+(during the test): a large difference means the line slows everything down when it is busy. While the
+test runs, the slowness it causes is not recorded as an event.
 
 ## 11. Changing dobermann's address
 
@@ -424,8 +445,8 @@ with the code it prints. The other settings stay.
 - **Panel password**: in `/etc/dobermann/admin.json`, not in clear text but as a hash (PBKDF2). The
   wizard takes it only from the keyboard (or from standard input) and writes it nowhere else.
 - **SMTP and device passwords**: in `/etc/dobermann/secrets.json`, readable only by the `dobermann`
-  user. With the local relay, the SMTP password is also in `/etc/nullmailer/remotes` (readable only by
-  `dobermann` and nullmailer), because nullmailer must be able to use it.
+  user. Versions before 0.2 also wrote the SMTP password into `/etc/nullmailer/remotes` for a local
+  relay that dobermann no longer uses: after updating you can delete that file (or remove nullmailer).
 - Passwords are **never** sent back to the browser, written to the logs or put in the mails.
 - They have to be kept in clear text to be used: whoever administers the container or the Proxmox host
   can read them, and they are in the container's backups. That is why a dedicated, revocable app

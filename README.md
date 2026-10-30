@@ -11,8 +11,10 @@ there is one, the operator. When the connection breaks it does not just say "it'
 - Works with any router that speaks UPnP (almost all of them), and reads some 4G/5G modems in more
   detail.
 - Mail is the only notification channel, with rules per kind of event and a daily or weekly summary.
-  Gmail works, as does any provider's SMTP server. A local queue keeps the mails written while the
-  internet is down.
+  Gmail works, as does any provider's SMTP server. A mail written while the internet is down waits in
+  dobermann's own queue and goes out when it is back.
+- The month's outages as a page to print or save as PDF (and as CSV), to attach to a complaint.
+- A speed test, only when you ask for it.
 - Web panel over HTTPS: today's incidents, history, charts, settings.
 - English, Italiano, Español, Deutsch, Français: in the panel and in the mails.
 - No Python packages to install: the standard library only.
@@ -41,7 +43,6 @@ wizard ends with the address to open.
 | gateway and addresses | `iproute2` | `iproute` | `iproute2` | `iproute2` |
 | checking the mail server | `ca-certificates` | `ca-certificates` | `ca-certificates` | `ca-certificates` |
 | the HTTPS certificate | `openssl` | `openssl` | `openssl` | `openssl` |
-| the mail queue (optional) | `nullmailer` | `nullmailer` | `nullmailer` | `nullmailer` |
 | the name `dobermann.local` (optional) | `avahi-daemon` `avahi-utils` | `avahi` `avahi-tools` | `avahi` | `avahi` `avahi-utils` |
 
 Tested on Debian 12, in Proxmox containers. Ubuntu and the other families use the same

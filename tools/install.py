@@ -11,14 +11,12 @@ The code stays where this copy is (/opt/dobermann in the Proxmox CT, see tools/p
   1. preflight: Python 3.11+, systemd and `ping` are required; see tools/deps.py for the full list;
   2. creates the system user `dobermann`, which the services run as;
   3. creates the configuration directory (0750) and the data directory (0750), owned by that user;
-  4. if nullmailer is installed (the local mail relay), gives its provider file /etc/nullmailer/remotes to
-     that user (group mail, 0640), so that the panel can write the provider's details into it;
-  5. unless --http, creates a self-signed HTTPS certificate for the panel if there is none
+  4. unless --http, creates a self-signed HTTPS certificate for the panel if there is none
      (tools/make_cert.py), so that the panel password and the mail password never cross the LAN in clear;
-  6. with --name (e.g. dobermann.local) and avahi installed, announces that name on the home network;
-  7. records the choices: language, the panel's address for the links in the mails, where it listens;
-  8. the panel password: from --password-stdin, or else a one-time code the first visit must give;
-  9. writes the systemd units and the `dobermann` command (/usr/local/bin/dobermann), then enables
+  5. with --name (e.g. dobermann.local) and avahi installed, announces that name on the home network;
+  6. records the choices: language, the panel's address for the links in the mails, where it listens;
+  7. the panel password: from --password-stdin, or else a one-time code the first visit must give;
+  8. writes the systemd units and the `dobermann` command (/usr/local/bin/dobermann), then enables
      and (re)starts the services.
 
 Running it again is how an update is installed: the units and the command are rewritten, the services
@@ -70,8 +68,6 @@ def preflight(https=True, exists=os.path.exists, which=shutil.which):
         errors.append(_("manca `ip` (iproute2): serve per trovare il gateway e gli indirizzi"))
     if https and not deps.present("openssl", which=which, exists=exists):
         warnings.append(_("manca `openssl`: serve per creare il certificato HTTPS, senza il pannello resta in HTTP"))
-    if not deps.present("nullmailer", which=which, exists=exists):
-        warnings.append(_("manca nullmailer: le mail partiranno via SMTP diretto, senza coda durante i guasti"))
     return errors, warnings
 
 
@@ -243,10 +239,6 @@ def run(args, out=print, runner=_run, password=None, summary=True):
         os.chmod(d, 0o750)
         runner(["chown", "-R", f"{USER}:{USER}", d])
     out(f"  ok  {cfg}, {st}")
-    if os.path.exists(args.nullmailer_remotes):
-        runner(["chown", f"{USER}:mail", args.nullmailer_remotes])
-        os.chmod(args.nullmailer_remotes, 0o640)
-        out("  ok  " + _("{v} scrivibile dal pannello", v=args.nullmailer_remotes))
 
     cert, key = os.path.join(cfg, "tls.crt"), os.path.join(cfg, "tls.key")
     fingerprint = None
@@ -372,7 +364,6 @@ def parser():
     ap.add_argument("--platform-ct", type=int, metavar="ID", help=argparse.SUPPRESS)
     ap.add_argument("--no-summary", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--platform-bridge", help=argparse.SUPPRESS)
-    ap.add_argument("--nullmailer-remotes", default="/etc/nullmailer/remotes")
     ap.add_argument("--apply", action="store_true", help=_("installa (altrimenti è una prova a vuoto)"))
     return ap
 

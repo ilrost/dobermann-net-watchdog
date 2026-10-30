@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dobermann — [[Registro dei disservizi]]</title>
+<style>
+:root{
+  color-scheme: light;
+  --surface-1: #fcfcfb; --surface-2: #f9f9f7;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+  --border: rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s3: #1baf7a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --surface-1: #1a1a19; --surface-2: #0d0d0d;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --border: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s3: #199e70;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --surface-1: #1a1a19; --surface-2: #0d0d0d;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+  --border: rgba(255,255,255,0.10);
+  --s1: #3987e5; --s3: #199e70;
+}
+html, body{ background: var(--surface-2); }
+body{ margin: 0; color: var(--text-primary); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap{ max-width: 900px; margin: 0 auto; padding: 32px 16px 60px; }
+.topnav{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.topnav > a{ font-size: 12px; color: var(--text-secondary); text-decoration: none; }
+.controls{ display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 0 0 24px; padding: 14px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; font-size: 12px; }
+.controls label{ display: flex; flex-direction: column; gap: 4px; color: var(--text-muted); }
+.controls select, .controls input{ padding: 7px 8px; font: inherit; font-size: 13px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text-primary); }
+.controls input{ width: 90px; }
+.controls button{ padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 600; border-radius: 8px; border: 0;
+  background: var(--s1); color: #fff; cursor: pointer; }
+.controls a{ color: var(--s1); font-size: 13px; padding: 8px 0; }
+h1{ font-size: 20px; margin: 0 0 4px; }
+h2{ font-size: 14px; margin: 28px 0 8px; }
+.meta{ color: var(--text-secondary); font-size: 13px; margin: 0 0 16px; }
+table{ border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td{ text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.facts{ width: auto; }
+table.facts th{ font-weight: 400; color: var(--text-secondary); padding-right: 24px; }
+table.events thead th{ font-size: 12px; color: var(--text-muted); font-weight: 600; }
+td.num{ white-space: nowrap; font-variant-numeric: tabular-nums; }
+td .sub{ color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+td.empty{ color: var(--text-muted); text-align: center; padding: 20px; }
+.method{ font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.events-wrap{ overflow-x: auto; }
+@media print{
+  :root{ color-scheme: light; --surface-1:#fff; --surface-2:#fff; --text-primary:#000; --text-secondary:#333; --text-muted:#555;
+    --border: rgba(0,0,0,.2); }
+  .noprint, .topnav{ display: none !important; }
+  .wrap{ max-width: none; padding: 0; }
+  tr{ break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topnav"><a href="/report">← [[Storico]]</a>__TOOLBAR__</div>
+__BODY__
+</div>
+</body>
+</html>

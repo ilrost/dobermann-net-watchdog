@@ -160,6 +160,65 @@ class TestPages(WebCase):
         self.assertIn("Router <prova> (127.0.0.1)", data["source"]["chain"])
         self.assertFalse(data["has_cellular"])
 
+    def test_dossier_page_and_csv(self):
+        import time
+        month = time.strftime("%Y-%m")
+        status, _, body = self.get(f"/dossier?month={month}")
+        self.assertEqual(status, 200)
+        self.assertNotRegex(body, r"__[A-Z_]+__")
+        self.assertIn("Registro dei disservizi", body)
+        self.assertIn("Internet irraggiungibile oltre il router", body)
+        self.assertIn("Router &lt;prova&gt;", body)
+        status, _, body = self.get(f"/dossier.csv?month={month}&scope=all&min=0")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(body.strip().splitlines()), 2)       # header + the one incident
+        self.assertEqual(self.get(f"/dossier.csv?month={month}&min=3600")[2].count("\n"), 1)   # too short: header only
+        self.assertEqual(self.get("/dossier?month=2026-13")[0], 400)
+        self.assertEqual(self.get("/dossier?month=x")[0], 400)
+
+    def test_speed_test_on_request(self):
+        from dobermann import speedtest
+
+        class Body:
+            def __init__(self, n):
+                self.left = n
+
+            def read(self, k=-1):
+                k = self.left if k < 0 else min(k, self.left)
+                self.left -= k
+                return b"x" * k
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def opener(url, data=None, timeout=10):
+            return Body(0 if data is not None else int(url.rsplit("=", 1)[1]))
+        status, _, body = self.get("/speed")
+        self.assertEqual(status, 200)
+        self.assertIn("Nessun test ancora", body)
+        with mock.patch.object(speedtest, "_request", opener):
+            status, _, body = self.post("/speed", size="10")
+        self.assertEqual(status, 200)
+        self.assertIn("Download", body)
+        self.assertIn("speed.cloudflare.com", body)
+        self.assertNotIn("Nessun test ancora", body)
+        self.assertEqual(self.post("/speed", size="7")[0], 409)
+
+    def test_mail_trouble_shows_in_the_toolbar_and_settings(self):
+        import sqlite3
+        import time
+        from dobermann import mailqueue
+        con = sqlite3.connect(config.db_file())
+        mailqueue.add(con, "[dobermann] giù", "b", now=time.time() - 3600)
+        con.close()
+        _, _, body = self.get("/watchdash")
+        self.assertIn("mail ✘", body)
+        _, _, body = self.get("/setup")
+        self.assertIn("1 mail in attesa di partire", body)
+
     def test_chain_label_is_escaped_in_settings(self):
         _, _, body = self.get("/setup")
         self.assertIn("Router &lt;prova&gt;", body)
@@ -181,7 +240,7 @@ class TestSettings(WebCase):
         self.login()
 
     def test_mail_password_goes_to_secrets_and_is_never_shown(self):
-        status, _, body = self.post("/setup", action="save_mail", enabled="1", to="io@example.org", transport="smtp",
+        status, _, body = self.post("/setup", action="save_mail", enabled="1", to="io@example.org", 
                                     smtp_host="smtp.example.org",
                                     smtp_port="587", smtp_security="starttls", smtp_username="io",
                                     smtp_password="segreto-123", dashboard_url="")
@@ -192,7 +251,7 @@ class TestSettings(WebCase):
         self.assertEqual(config.load_secrets()["mail"]["password"], "segreto-123")
         self.assertEqual(config.load()["mail"]["smtp"]["host"], "smtp.example.org")
         # saving again with an empty password keeps the stored one
-        self.post("/setup", action="save_mail", enabled="1", to="io@example.org", transport="smtp",
+        self.post("/setup", action="save_mail", enabled="1", to="io@example.org", 
                   smtp_host="smtp.example.org", smtp_port="587",
                   smtp_security="starttls", smtp_username="io", smtp_password="", dashboard_url="")
         self.assertEqual(config.load_secrets()["mail"]["password"], "segreto-123")
@@ -200,7 +259,7 @@ class TestSettings(WebCase):
     def test_stored_password_never_goes_to_a_changed_server(self):
         from unittest import mock
         from dobermann import notify
-        base = dict(action="save_mail", enabled="1", to="io@example.org", transport="smtp", smtp_host="smtp.example.org",
+        base = dict(action="save_mail", enabled="1", to="io@example.org", smtp_host="smtp.example.org",
                     smtp_port="587", smtp_security="starttls", smtp_username="io", dashboard_url="")
         self.post("/setup", **dict(base, smtp_password="segreto-123"))
         with mock.patch.object(notify, "deliver", return_value=(True, None)) as deliver:
@@ -223,29 +282,10 @@ class TestSettings(WebCase):
         from dobermann import notify
         with mock.patch.object(notify, "deliver", return_value=(False, "il server ha chiuso <la> connessione")), \
                 mock.patch("builtins.print"):
-            status, _, body = self.post("/setup", action="test_mail", enabled="1", to="io@example.org", transport="relay",
+            status, _, body = self.post("/setup", action="test_mail", enabled="1", to="io@example.org",
                                         smtp_host="smtp.example.org", smtp_port="587", smtp_security="starttls",
                                         smtp_username="io", smtp_password="", dashboard_url="")
         self.assertIn("Invio fallito: il server ha chiuso &lt;la&gt; connessione", body)
-
-    def test_relay_save_writes_nullmailer_remotes(self):
-        from unittest import mock
-        from dobermann import relay
-        remotes = os.path.join(self.tmp.name, "remotes")
-        with mock.patch.object(relay, "detect", return_value="nullmailer"), \
-                mock.patch.object(relay, "NULLMAILER_REMOTES", remotes):
-            status, _, body = self.post("/setup", action="save_mail", enabled="1", to="io@example.org", transport="relay",
-                                        smtp_host="smtp.example.org", smtp_port="465", smtp_security="ssl",
-                                        smtp_username="io@example.org", smtp_password="pw-1", dashboard_url="")
-            self.assertIn("nullmailer configurato", body)
-            with open(remotes) as f:
-                self.assertEqual(f.read(), "smtp.example.org smtp --port=465 --ssl --user=io@example.org --pass=pw-1\n")
-            status, _, body = self.post("/setup", action="save_mail", enabled="1", to="io@example.org", transport="relay",
-                                        smtp_host="smtp.example.org", smtp_port="465", smtp_security="ssl",
-                                        smtp_username="io@example.org", smtp_password="con spazi", dashboard_url="")
-            self.assertEqual(status, 400)
-            self.assertIn("spazi", body)
-        self.assertEqual(config.load_secrets()["mail"]["password"], "pw-1")   # the refused save changed nothing
 
     def test_alert_rules_save_and_validation(self):
         fields = dict(action="save_alerts", mode_outage="after", after_outage="3", mode_ip_renewal="never", after_ip_renewal="2",
@@ -256,7 +296,7 @@ class TestSettings(WebCase):
         m = config.load()["mail"]
         self.assertEqual(m["rules"]["outage"], {"mode": "after", "after_min": 3})
         self.assertEqual(m["summary"], {"frequency": "daily", "weekday": 2, "hour": 7, "send_if_quiet": False})
-        self.assertEqual(config.load()["mail"]["transport"], "relay")      # the rest of the mail settings untouched
+        self.assertEqual(config.load()["mail"]["cooldown_s"], 300)      # the rest of the mail settings untouched
         status, _, _ = self.post("/setup", **dict(fields, mode_dns="sempre"))
         self.assertEqual(status, 400)
         _, _, body = self.get("/setup")
